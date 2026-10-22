@@ -8,7 +8,7 @@ import crypto from 'crypto';
 export const app = createApp();
 
 export async function cleanupDatabase() {
-  await db.execute(sql`TRUNCATE TABLE loans, otp_challenges, users CASCADE`);
+  await db.execute(sql`DELETE FROM loans; DELETE FROM otp_challenges; DELETE FROM users;`);
 }
 
 export function generateTestPhone(): string {

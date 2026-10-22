@@ -30,8 +30,9 @@ export function createApp() {
   // Request ID
   app.use(requestIdMiddleware);
 
-  // Body parser with size limit
-  app.use(express.json({ limit: '100kb' }));
+  // Body parser with size limit (supports base64 profile pictures and attachments)
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
   // Health endpoint
   app.get(['/healthz', '/health'], (req, res) => {

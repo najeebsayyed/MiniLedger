@@ -206,4 +206,35 @@ describe('Auth Endpoints & Business Rules', () => {
     expect(meRes.status).toBe(200);
     expect(meRes.body.data.name).toBe('Rahul Sharma');
   });
+
+  it('accepts base64 profile pictures larger than 100kb without PayloadTooLargeError', async () => {
+    const phone = generateTestPhone();
+    const otp = '777777';
+    await db.insert(otpChallenges).values({
+      phoneNumber: phone,
+      codeHash: hashOtp(otp),
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      attemptCount: 0,
+    });
+
+    const verifyRes = await request(app)
+      .post('/api/v1/auth/verify-otp')
+      .send({ phoneNumber: phone, otp });
+    const token = verifyRes.body.data.accessToken;
+
+    // Construct a ~250KB base64 avatar string (larger than previous 100kb limit)
+    const largeBase64Avatar = 'data:image/jpeg;base64,' + 'A'.repeat(250 * 1024);
+
+    const updateRes = await request(app)
+      .patch('/api/v1/auth/profile')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: 'Priya Patel',
+        avatarUrl: largeBase64Avatar,
+      });
+
+    expect(updateRes.status).toBe(200);
+    expect(updateRes.body.data.name).toBe('Priya Patel');
+    expect(updateRes.body.data.avatarUrl).toBe(largeBase64Avatar);
+  });
 });

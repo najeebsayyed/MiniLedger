@@ -85,9 +85,9 @@ export function SettingsScreen() {
     try {
       const response = await launchImageLibrary({
         mediaType: 'photo',
-        quality: 0.7,
-        maxWidth: 400,
-        maxHeight: 400,
+        quality: 0.6,
+        maxWidth: 320,
+        maxHeight: 320,
         includeBase64: true,
       });
 
@@ -142,11 +142,18 @@ export function SettingsScreen() {
       setIsSaving(true);
       setNameError(null);
 
-      // Persist to backend
-      await updateProfile({
+      const profilePayload: { name: string; avatarUrl?: string | null } = {
         name: trimmedName,
-        avatarUrl: pendingAvatarUri,
-      });
+      };
+
+      // Only transmit avatarUrl over the wire if it was changed or removed
+      const currentAvatar = user?.avatarUrl || null;
+      if (pendingAvatarUri !== currentAvatar) {
+        profilePayload.avatarUrl = pendingAvatarUri;
+      }
+
+      // Persist to backend
+      await updateProfile(profilePayload);
 
       // Persist avatar to durable local device storage
       await saveUserAvatar(pendingAvatarUri);
