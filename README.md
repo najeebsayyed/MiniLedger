@@ -1,292 +1,294 @@
-# MiniLedger — Personal Loan Ledger
+# MiniLedger
 
-> A production-grade, full-stack personal loan ledger built with a bare **React Native CLI** mobile frontend, **NativeWind v4 + Tailwind CSS v3**, **Node.js + TypeScript** API, and **PostgreSQL 16** persistence.
-
----
-
-## Table of Contents
-
-1. [Overview & Highlights](#overview--highlights)
-2. [Architecture & Technology Stack](#architecture--technology-stack)
-3. [Design System — Calm Confidence](#design-system--calm-confidence)
-4. [Prerequisites](#prerequisites)
-5. [Quick Start & Setup Instructions](#quick-start--setup-instructions)
-6. [Starting the API & Database](#starting-the-api--database)
-7. [Starting the Mobile Application](#starting-the-mobile-application)
-8. [Mock OTP Authentication Workflow](#mock-otp-authentication-workflow)
-9. [Automated Test Suite & Verification](#automated-test-suite--verification)
-10. [API Specification & Endpoints](#api-specification--endpoints)
-11. [2–3 Minute Demo Walkthrough Sequence](#23-minute-demo-walkthrough-sequence)
-12. [Security, Limitations & Evaluation Disclosures](#security-limitations--evaluation-disclosures)
+MiniLedger is a modern full-stack mobile application for tracking personal loans extended to friends and acquaintances. It helps users record lent amounts, monitor repayment status, highlight overdue debts with calendar precision, and view server-calculated financial summaries.
 
 ---
 
-## 1. Overview & Highlights
+## Features
 
-**MiniLedger** is built to solve personal informal lending tracking with financial precision and a serene, clutter-free user experience. Users can record loans extended to friends, view real-time financial metrics, distinguish overdue receivables at a glance, and record repayments with atomic updates.
-
-### Key Capabilities
-- **Strict User Isolation**: All records, summaries, and OTP challenges are strictly scoped to the authenticated user ID extracted from cryptographically verified JWT tokens.
-- **Decimal-Safe Financial Arithmetic**: Eliminates IEEE-754 floating-point inaccuracies using PostgreSQL native `DECIMAL(12, 2)` representations and string-serialized numeric contracts.
-- **Date Boundary Correctness**: Evaluates loan overdue status against a centralized `Asia/Kolkata` business-date calendar (`dueDate < businessDate`; due today is active, not overdue).
-- **Mock OTP Login**: Phone number sign-in with 6-digit mock OTP codes printed exclusively to the local API development terminal.
-- **Zero Mock UI Data**: 100% data-driven mobile frontend powered by TanStack Query and optimistic cache invalidation.
+- **Phone Authentication with Mock OTP**: Fast, passwordless login using phone verification. In development, a random 6-digit OTP is output directly to the server terminal.
+- **Loan Management**: Create loans with borrower name, amount, notes, and due date. Past due dates are supported to record existing loans retroactively.
+- **Repayment Tracking**: Mark loans as repaid with atomic database status transitions and immediate balance recalculation.
+- **Overdue Detection**: Automatically flags overdue loans by comparing due dates against a centralized business timezone (`Asia/Kolkata`). Loans due today remain active and are not marked overdue.
+- **Portfolio Summary**: Live financial dashboard displaying Total Lent, Total Repaid, Overdue Amount, and Net Outstanding computed with PostgreSQL decimal precision.
+- **Ledger Search & Filtering**: Instant search by friend name and tab filters for All, Outstanding, Overdue, and Repaid loans.
+- **Interactive Onboarding**: 4-slide introductory product walkthrough with custom vector illustrations explaining core functionality.
+- **Account & Settings Hub**: Profile badge, session security information, architectural stack details, cache invalidation, and secure sign-out.
 
 ---
 
-## 2. Architecture & Technology Stack
+## Tech Stack
 
-The project is structured as a clean npm monorepo workspace:
+### Mobile Application
+- **Runtime**: React Native CLI `0.88.0` (Bare native CLI, no Expo)
+- **Language**: TypeScript `5.6`
+- **Styling**: NativeWind `4.2.7` + Tailwind CSS `3.4.17`
+- **Navigation**: React Navigation `7.x` (Native Stack & Bottom Tabs)
+- **Server State**: TanStack Query (React Query) `v5`
+- **Secure Storage**: `react-native-keychain`
+- **Graphics & Motion**: `react-native-svg` and `react-native-reanimated`
+
+### Backend API
+- **Runtime**: Node.js `22+` / `24+` with TypeScript `5.6` (strict mode)
+- **Framework**: Express `4.21`
+- **Security & Utilities**: Helmet, CORS, Express Rate Limit, Pino logger, `jose` (JWT)
+- **Validation**: Zod runtime schema validation
+
+### Database & Persistence
+- **Database**: PostgreSQL 16
+- **ORM & Migrations**: Drizzle ORM `0.36` + Drizzle Kit `0.28`
+
+### Shared Packages
+- **`@miniledger/contracts`**: Shared TypeScript DTOs and Zod validation contracts used across backend and mobile apps.
+
+---
+
+## Project Structure
 
 ```
 MiniLedger/
 ├── apps/
-│   ├── api/                   # Node.js + Express + TypeScript Backend
-│   │   ├── drizzle/           # Generated SQL migration files
+│   ├── api/                    # Node.js + Express backend service
+│   │   ├── drizzle/            # SQL migration files generated by Drizzle Kit
 │   │   ├── src/
-│   │   │   ├── config/        # Environment validation via Zod
-│   │   │   ├── db/            # PostgreSQL connection & Drizzle ORM schema
-│   │   │   ├── lib/           # Dates, money arithmetic & JWT token utilities
-│   │   │   ├── middleware/    # Auth, Request-ID, CORS, rate-limits & error handling
-│   │   │   └── modules/       # Auth, Loans & Summary controllers and routes
-│   │   └── tests/             # Vitest unit & integration test suite (15/15 passing)
+│   │   │   ├── config/         # Environment variable validation via Zod
+│   │   │   ├── db/             # PostgreSQL connection, Drizzle schema & migrator
+│   │   │   ├── middleware/     # Auth, error handling, rate limiting & request IDs
+│   │   │   └── modules/        # Auth, loans, and summary routes and controllers
+│   │   └── tests/              # Vitest test suite (auth, loans, summaries)
 │   │
-│   └── mobile/                # Bare React Native CLI (React Native 0.88)
-│       ├── android/           # Committed native Android project
-│       ├── ios/               # Committed native iOS project
-│       ├── src/
-│       │   ├── components/ui/ # Reusable UI primitives (Button, TextField, Card, Pill)
-│       │   ├── features/      # Typed API client, hooks & auth session context
-│       │   ├── navigation/    # Session-aware root, stack & tab navigators
-│       │   ├── screens/       # Login, OTP, Dashboard, Ledger, Add Loan, Loan Details
-│       │   ├── theme/         # Centralized Tailwind color tokens
-│       │   └── utils/         # Currency and localized date formatters
-│       ├── tailwind.config.js # Tailwind CSS v3 configuration
-│       └── global.css         # NativeWind entry stylesheet
+│   └── mobile/                 # React Native CLI mobile application
+│       ├── android/            # Native Android project configuration
+│       ├── ios/                # Native iOS project configuration
+│       └── src/
+│           ├── components/     # UI primitives and custom SVG vector illustrations
+│           ├── features/       # Authentication context and API hooks
+│           ├── navigation/     # Navigators (Splash, Onboarding, Auth, App Tabs)
+│           ├── screens/        # Dashboard, Ledger, Add Loan, Loan Details, Settings
+│           └── theme/          # Centralized Tailwind color tokens
 │
 ├── packages/
-│   └── contracts/             # Shared TypeScript DTOs and Zod validation schemas
-│       └── src/
-│           ├── auth.ts        # Phone regex, OTP request & verify contracts
-│           ├── loan.ts        # Loan CRUD, query filters, sort & pagination schemas
-│           └── summary.ts     # Financial summary metrics contract
+│   └── contracts/              # Shared TypeScript interfaces & Zod schemas
 │
-├── docker-compose.yml         # Containerized PostgreSQL 16 Alpine configuration
-└── package.json               # Root monorepo scripts & workspaces
+├── docker-compose.yml          # Containerized PostgreSQL 16 service
+└── package.json                # Root monorepo workspace configuration
 ```
 
-### Core Technologies
-- **Mobile Frontend**: React Native `0.88.0` (Bare CLI, **no Expo**), NativeWind `4.2.7` + Tailwind CSS `3.4.17`, React Navigation `7.x`, React Native Screens `4.x`, Safe Area Context, React Native Keychain.
-- **Backend API**: Node.js `22.x/24.x`, Express `4.21.x`, TypeScript `5.6.x` (strict mode), Drizzle ORM `0.36.x`, PostgreSQL `16`, `jose` JWT authentication.
-- **Contracts**: Shared Zod schemas ensuring runtime type guarantees at all client-server boundaries.
-- **Database**: PostgreSQL with transactional single-use OTP validation and atomic repayment transitions.
+---
+
+## Prerequisites
+
+Before running the project, ensure your environment has the following installed:
+
+1. **Node.js**: `v22.11.0` or higher ([Node.js Downloads](https://nodejs.org/))
+2. **npm**: `v10.x` or higher (bundled with Node.js)
+3. **Docker Desktop**: For running PostgreSQL 16 locally ([Docker Desktop](https://www.docker.com/products/docker-desktop/))
+4. **JDK**: OpenJDK 17 ([Adoptium Temurin](https://adoptium.net/))
+5. **Android Studio**: Android SDK (API 34/35), Platform Tools (`adb`), and an Android Virtual Device (AVD) or physical device with USB debugging enabled ([React Native Environment Setup](https://reactnative.dev/docs/set-up-your-environment?platform=android))
 
 ---
 
-## 3. Design System — Calm Confidence
+## Getting Started
 
-MiniLedger follows the **Calm Confidence** fintech design philosophy:
-- **Palette**: Deep forest green (`#153E35`), warm ivory background (`#F6F7F2`), crisp white cards (`#FFFFFF`), citrus accent (`#D8F36A`), and warm coral for overdue attention (`#C94E42`).
-- **Typography & Spacing**: Clean hierarchy, generous padding, and high-contrast numerical figures for instant legibility.
-- **State Handling**: Comprehensive states for all screens — loading skeletons, empty states with clear CTAs, validation errors, and success feedback.
+Follow these step-by-step instructions to run the application locally.
 
----
-
-## 4. Prerequisites
-
-Ensure your development workstation has:
-1. **Node.js**: `v20.x` or `v22.x` (or newer LTS).
-2. **Docker Desktop**: Running for PostgreSQL containerization.
-3. **Android Studio**: Android SDK, Platform Tools (`adb`), and OpenJDK 17 configured (`ANDROID_HOME` in environment variables).
-
----
-
-## 5. Quick Start & Setup Instructions
-
-### 1. Clone the repository
+### 1. Clone the Repository
 ```bash
 git clone https://github.com/your-username/MiniLedger.git
 cd MiniLedger
 ```
 
-### 2. Install dependencies
+### 2. Install Dependencies
+Install all workspace dependencies from the root directory:
 ```bash
 npm install
 ```
 
----
-
-## 6. Starting the API & Database
-
-### 1. Start the PostgreSQL Container
+### 3. Start PostgreSQL Database
+Start the PostgreSQL container in detached mode:
 ```bash
 npm run db:up
 ```
-*(Starts PostgreSQL 16 on port `5432` with username `miniledger`, password `miniledger_dev`, database `miniledger`)*
+*This launches PostgreSQL 16 on port `5432` with credentials defined in `docker-compose.yml`.*
 
-### 2. Apply Database Migrations
-```bash
-npm run db:migrate
+### 4. Configure API Environment Variables
+Create the backend `.env` file from the example:
+
+**Windows (PowerShell):**
+```powershell
+Copy-Item apps/api/.env.example apps/api/.env
 ```
-*(Runs Drizzle migrations located in `apps/api/drizzle/` to create `users`, `otp_challenges`, and `loans` tables)*
 
-### 3. Configure API Environment
-Copy the example environment file if you haven't already:
+**macOS / Linux:**
 ```bash
 cp apps/api/.env.example apps/api/.env
 ```
 
-Default configuration in `apps/api/.env`:
-```env
-NODE_ENV=development
-PORT=3000
-DATABASE_URL=postgresql://miniledger:miniledger_dev@localhost:5432/miniledger
-JWT_SECRET=super-secret-development-jwt-key-min-32-chars-long!
-JWT_EXPIRES_IN=30d
-OTP_EXPIRY_SECONDS=300
-OTP_RESEND_COOLDOWN_SECONDS=60
-OTP_MAX_ATTEMPTS=5
+### 5. Run Database Migrations
+Apply the database schema to your PostgreSQL instance:
+```bash
+npm run db:migrate
 ```
+*This runs Drizzle migrations located in `apps/api/drizzle/`, creating the `users`, `otp_challenges`, and `loans` tables.*
 
-### 4. Start the API Server
+### 6. Start the Backend API Server
+Launch the API in development mode with live reload:
 ```bash
 npm run dev:api
 ```
-The server will start at `http://localhost:3000`. Test the health endpoint:
+The server will start at `http://localhost:4000`. You can verify it by opening `http://localhost:4000/health` in your browser or terminal:
 ```bash
-curl http://localhost:3000/health
-# {"status":"ok","timestamp":"2026-10-22T...","service":"miniledger-api"}
+curl http://localhost:4000/health
 ```
 
----
+### 7. Configure Device Networking
+The mobile app default endpoint is `http://localhost:4000/api/v1` (configured in `apps/mobile/src/lib/api-client.ts`).
 
-## 7. Starting the Mobile Application
-
-### 1. Reverse Port Forwarding for Android
-If testing on an Android Emulator or connected physical device:
+#### Option A: Physical Android Device via USB (Recommended)
+Connect your Android phone with USB debugging enabled, then forward the API and Metro ports:
 ```bash
-adb reverse tcp:3000 tcp:3000
+adb reverse tcp:4000 tcp:4000
 adb reverse tcp:8081 tcp:8081
 ```
 
-> **Physical Device LAN Connection Tip**: If using a physical Android device without `adb reverse`, update `apps/mobile/src/lib/api-client.ts` to point to your computer's local Wi-Fi IP address (e.g., `http://192.168.1.15:3000/api/v1`).
+#### Option B: Android Emulator
+If using an Android emulator without port forwarding, update `DEFAULT_API_BASE_URL` in `apps/mobile/src/lib/api-client.ts` to `http://10.0.2.2:4000/api/v1` (which maps to localhost on the host machine).
 
-### 2. Start Metro Bundler
-In a separate terminal window:
+#### Option C: Physical Device over Wi-Fi
+Ensure your phone and computer are on the same Wi-Fi network. Update `DEFAULT_API_BASE_URL` in `apps/mobile/src/lib/api-client.ts` to use your computer's local LAN IP (e.g., `http://192.168.1.15:4000/api/v1`).
+
+### 8. Run the Mobile App
+
+Open a new terminal window to start the Metro bundler:
 ```bash
 npm run dev:mobile
 ```
 
-### 3. Build & Launch Android App
-In another terminal window:
+In another terminal window, build and launch the Android application:
 ```bash
 npm run dev:android
 ```
 
 ---
 
-## 8. Mock OTP Authentication Workflow
+## Environment Variables
 
-MiniLedger uses a developer-friendly Mock OTP authentication adapter:
-1. Open the mobile app and enter any valid 10-digit Indian phone number (e.g. `9876543210`).
-2. Tap **Continue with Phone**.
-3. Look at your **API server terminal**. You will see the generated 6-digit OTP formatted as follows:
+Backend environment configuration is stored in `apps/api/.env`. A template is provided at `apps/api/.env.example`.
 
-```
-=======================================================
-🔑 [MINILEDGER DEMO OTP]
-📱 Phone: +91*****43210
-👉 Code:  482915
-⏳ Valid for 5 minutes
-=======================================================
-```
+| Variable | Required | Default | Purpose |
+| :--- | :---: | :--- | :--- |
+| `NODE_ENV` | No | `development` | Application runtime environment (`development`, `test`, `production`) |
+| `PORT` | No | `4000` | HTTP port on which the Express server listens |
+| `DATABASE_URL` | **Yes** | — | PostgreSQL connection URI (`postgresql://user:password@host:port/database`) |
+| `JWT_SECRET` | **Yes** | — | Cryptographic secret key used to sign session JWTs (minimum 32 characters) |
+| `JWT_ISSUER` | No | `miniledger-api` | Standard `iss` claim for signed authentication tokens |
+| `JWT_AUDIENCE` | No | `miniledger-mobile` | Standard `aud` claim for signed authentication tokens |
+| `APP_TIMEZONE` | No | `Asia/Kolkata` | Centralized business timezone used for calculating overdue date boundaries |
+| `OTP_MODE` | No | `mock` | OTP generation adapter (`mock` logs to server terminal; `sms` for production providers) |
+| `CORS_ORIGINS` | No | `""` (allows all) | Comma-separated list of allowed origins for cross-origin browser requests |
 
-4. Enter the 6-digit code in the mobile OTP screen.
-5. Verification automatically succeeds, securely persists the JWT token in the device Keychain, and navigates to the financial dashboard.
+> **Security Note**: Never commit actual `.env` files or real secret keys to source control.
 
 ---
 
-## 9. Automated Test Suite & Verification
+## Authentication Flow
 
-The backend includes a comprehensive automated test suite covering authentication, authorization, loan lifecycle, and business date calculations:
+MiniLedger uses passwordless phone number authentication with a mock OTP adapter for local development:
 
+1. **Enter Phone Number**: Input any valid 10-digit Indian phone number (e.g., `9876543210`) on the Login screen and tap **Continue with Phone**.
+2. **Retrieve the OTP**: Switch to the **API terminal window** where `npm run dev:api` is running. A formatted mock OTP banner will appear:
+
+   ```
+   =======================================================
+   🔑 [MINILEDGER DEMO OTP]
+   📱 Phone: +91*****43210
+   👉 Code:  482915
+   ⏳ Valid for 5 minutes
+   =======================================================
+   ```
+
+3. **Verify the Code**: Enter the 6-digit code into the mobile app. The code is verified by the backend, which issues a signed JWT access token.
+4. **Session Persistence**: The token is securely stored in the native device keychain via `react-native-keychain`. Subsequent app launches restore the authenticated session automatically.
+
+*Note: No real SMS messages are dispatched in mock mode, eliminating third-party SMS carrier costs and setup overhead.*
+
+---
+
+## API Endpoints
+
+All API endpoints are prefixed with `/api/v1` (except the health check).
+
+| Method | Endpoint | Auth Required | Description |
+| :--- | :--- | :---: | :--- |
+| `GET` | `/health` | No | Health check and server status |
+| `POST` | `/api/v1/auth/request-otp` | No | Request a 6-digit OTP challenge for a phone number (rate limited) |
+| `POST` | `/api/v1/auth/verify-otp` | No | Validate OTP challenge and obtain a JWT bearer token |
+| `GET` | `/api/v1/auth/me` | Bearer JWT | Retrieve profile details for the authenticated user session |
+| `GET` | `/api/v1/summary` | Bearer JWT | Get user's financial totals (Total Lent, Repaid, Overdue, Outstanding) |
+| `GET` | `/api/v1/loans` | Bearer JWT | List user loans with pagination, search, and status filters |
+| `POST` | `/api/v1/loans` | Bearer JWT | Create a new loan record (`friendName`, `amount`, `dueDate`, `notes`) |
+| `GET` | `/api/v1/loans/:id` | Bearer JWT | Retrieve full details of a specific loan |
+| `PATCH` | `/api/v1/loans/:id/repay` | Bearer JWT | Atomically mark an active loan as repaid |
+
+---
+
+## Useful Commands
+
+All common tasks can be run directly from the root of the repository:
+
+| Command | Workspace | Description |
+| :--- | :--- | :--- |
+| `npm run db:up` | Root | Start the PostgreSQL 16 container via Docker Compose |
+| `npm run db:down` | Root | Stop the PostgreSQL container |
+| `npm run db:migrate` | `@miniledger/api` | Apply pending Drizzle migrations to PostgreSQL |
+| `npm run dev:api` | `@miniledger/api` | Start the backend development server with watch mode (`tsx`) |
+| `npm run dev:mobile` | `@miniledger/mobile` | Start the React Native Metro bundler |
+| `npm run dev:android` | `@miniledger/mobile` | Build and launch the Android application |
+| `npm run dev:ios` | `@miniledger/mobile` | Build and launch the iOS application (macOS with Xcode) |
+| `npm run test` | `@miniledger/api` | Execute the backend Vitest integration and unit test suite |
+| `npm run typecheck` | All workspaces | Run TypeScript compiler checks (`tsc --noEmit`) across packages |
+| `npm run lint` | All workspaces | Run ESLint checks across packages |
+
+---
+
+## Troubleshooting
+
+### 1. PostgreSQL Connection Error (`ECONNREFUSED 127.0.0.1:5432`)
+- Ensure Docker Desktop is running on your machine.
+- Run `docker compose ps` to check if `miniledger-postgres` is active.
+- If stopped, start it with `npm run db:up`.
+- Verify that port `5432` is not occupied by another local PostgreSQL instance.
+
+### 2. Mobile App Cannot Reach API (`Network request failed`)
+- **If using USB debugging**: Ensure port forwarding is active:
+  ```bash
+  adb reverse tcp:4000 tcp:4000
+  ```
+- **If using Android Emulator**: Change `DEFAULT_API_BASE_URL` in `apps/mobile/src/lib/api-client.ts` to `http://10.0.2.2:4000/api/v1`.
+- **If using Wi-Fi on a physical device**: Use your machine's local IP (e.g., `http://192.168.1.X:4000/api/v1`) and ensure your computer's firewall permits incoming connections on port `4000`.
+
+### 3. Mock OTP Does Not Appear
+- Ensure you are looking at the terminal window running `npm run dev:api`.
+- Check if the phone number submitted is a valid 10-digit number.
+- OTP requests are rate-limited to 1 request per 60 seconds per phone number to prevent spamming.
+
+### 4. Metro Bundler Cache Issues
+Clear the Metro cache if code updates or dependencies do not take effect:
 ```bash
-# Run all backend tests
-npm run test
+npm run start --workspace=@miniledger/mobile -- --reset-cache
 ```
 
-### Test Coverage Highlights
-- ✅ **Mock OTP Security**: OTP is never exposed in API responses; expired and multi-use OTPs are rejected; 5-attempt brute-force threshold locks challenge.
-- ✅ **User Isolation**: User A cannot read, update, or repay User B's loans. User summaries only compute the authenticated user's records.
-- ✅ **Business Date Overdue Logic**: Evaluated against `Asia/Kolkata`. A loan due today is strictly **not overdue**; a loan due yesterday is **overdue**.
-- ✅ **Atomic Repayment**: Transitions active loans to repaid status; subsequent duplicate repayment requests return `409 Conflict`.
-- ✅ **Typecheck Verification**: Run `npm run typecheck` across all packages and apps (0 errors).
+### 5. Android Build Fails in Gradle
+If the native build fails after pulling changes or modifying native packages:
+```bash
+cd apps/mobile/android
+./gradlew clean
+cd ../../..
+npm run dev:android
+```
 
 ---
 
-## 10. API Specification & Endpoints
+## License
 
-Base path: `/api/v1`
-
-| Method | Endpoint | Auth | Description |
-|:-------|:---------|:-----|:------------|
-| `GET` | `/health` | No | Server health and timestamp check |
-| `POST` | `/api/v1/auth/otp/request` | No | Request mock OTP for phone number (throttled to 60s) |
-| `POST` | `/api/v1/auth/otp/verify` | No | Verify 6-digit OTP; returns JWT access token & user profile |
-| `GET` | `/api/v1/auth/me` | Bearer | Retrieve profile for authenticated user session |
-| `GET` | `/api/v1/summary` | Bearer | Compute financial metrics (Total Lent, Repaid, Overdue, Outstanding) |
-| `GET` | `/api/v1/loans` | Bearer | List loans with pagination, `status` filter (`all`, `outstanding`, `overdue`, `repaid`), `search`, and `sort` |
-| `POST` | `/api/v1/loans` | Bearer | Create a new loan record (`friendName`, `amount`, `dueDate`) |
-| `GET` | `/api/v1/loans/:id` | Bearer | Retrieve details for a single loan |
-| `PATCH`| `/api/v1/loans/:id/repay` | Bearer | Mark an active loan as repaid atomically |
-
----
-
-## 11. 2–3 Minute Demo Walkthrough Sequence
-
-For your demonstration video:
-
-1. **0:00 – 0:25 — Branding & Authentication**
-   - Open MiniLedger; highlight the Calm Confidence theme and clean typography.
-   - Enter a test phone number (`9876543210`) and press **Continue with Phone**.
-   - Show the API terminal log printing the `[MINILEDGER DEMO OTP]` code.
-   - Enter the 6 digits on the screen; auto-submits and transitions to the Dashboard.
-
-2. **0:25 – 0:55 — Dashboard Financial Summary**
-   - Point out the 4 server-calculated metrics: Total Lent, Total Repaid, Overdue Amount, and Outstanding Net.
-   - Emphasize that all numbers are computed in PostgreSQL with decimal safety.
-
-3. **0:55 – 1:30 — Recording a New Loan**
-   - Tap **+ New Loan**.
-   - Demonstrate client and server input validation (name required, positive amount, valid date).
-   - Enter a friend's name (e.g., `Rahul Verma`), an amount (e.g., `2500.00`), and choose a **past due date** to demonstrate overdue detection.
-   - Tap **Record Loan**.
-
-4. **1:30 – 2:00 — Overdue Highlight & Filtering**
-   - On the Dashboard, observe the new loan appear in the **Attention Needed (Overdue)** section with a coral warning indicator.
-   - Switch to the **Ledger** tab.
-   - Test filter chips: **All**, **Outstanding**, **Overdue**, and **Repaid**.
-   - Use the live search bar to filter by name.
-
-5. **2:00 – 2:30 — Mark as Repaid & Summary Auto-Refresh**
-   - Tap on the overdue loan to open **Loan Details**.
-   - Tap **Mark as Repaid** and confirm in the alert dialog.
-   - Notice the status immediately changes to **Repaid** with a green badge.
-   - Navigate back to the Dashboard: observe the **Total Repaid** increase, **Overdue Amount** drop to ₹0, and **Outstanding Net** recalculate automatically.
-
-6. **2:30 – 2:50 — Session Persistence & Sign Out**
-   - Navigate to the **Account** tab.
-   - Review the Developer Mock OTP disclosure and technical architecture details.
-   - Tap **Sign Out** to securely clear Keychain credentials and reset cache.
-
----
-
-## 12. Security, Limitations & Evaluation Disclosures
-
-- **Mock OTP Adapter**: In local development, OTP codes are printed to the server log rather than transmitted via commercial SMS gateways (Twilio/AWS SNS) to enable friction-free testing.
-- **Secure Token Storage**: The client utilizes `react-native-keychain` to store bearer JWT tokens in encrypted hardware-backed storage on supported devices.
-- **Financial Arithmetic**: Floating point `number` sums are avoided on both the backend and database layer to guarantee financial accounting precision.
-
----
-
-*Crafted with attention to detail for the MiniLedger internship assignment.*
+This project is licensed under the MIT License.
