@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 import { Button } from './Button';
-import { Wallet, SearchX, AlertTriangle } from 'lucide-react-native';
+import { SearchX, AlertTriangle } from 'lucide-react-native';
+import { EmptyLedgerIllustration } from '../illustrations';
 
 export type EmptyStateType = 'ledger' | 'filter' | 'error';
 
@@ -20,23 +21,37 @@ export function EmptyState({
   actionLabel,
   onAction,
 }: EmptyStateProps) {
-  let defaultIcon = <Wallet size={40} color="#153E35" strokeWidth={1.5} />;
+  let defaultIcon: React.ReactNode = null;
   let defaultTitle = 'Your ledger is clean';
   let defaultDesc =
     'When you lend money to friends or family, add a loan here to remember who owes what.';
   let defaultAction = 'Add your first loan';
 
   if (type === 'filter') {
-    defaultIcon = <SearchX size={40} color="#68756E" strokeWidth={1.5} />;
+    defaultIcon = (
+      <View className="w-16 h-16 rounded-full bg-surface-muted items-center justify-center mb-4">
+        <SearchX size={36} color="#68756E" strokeWidth={1.5} />
+      </View>
+    );
     defaultTitle = 'No loans match this view';
     defaultDesc = 'Try changing the filter or clearing the search query.';
     defaultAction = 'Show all loans';
   } else if (type === 'error') {
-    defaultIcon = <AlertTriangle size={40} color="#C94E42" strokeWidth={1.5} />;
+    defaultIcon = (
+      <View className="w-16 h-16 rounded-full bg-overdue-surface items-center justify-center mb-4">
+        <AlertTriangle size={36} color="#C94E42" strokeWidth={1.5} />
+      </View>
+    );
     defaultTitle = 'Couldn’t load data';
     defaultDesc =
       'There was a problem communicating with the server. Check your connection and try again.';
     defaultAction = 'Retry';
+  } else {
+    defaultIcon = (
+      <View className="mb-4">
+        <EmptyLedgerIllustration width={180} height={140} />
+      </View>
+    );
   }
 
   const finalTitle = title || defaultTitle;
@@ -44,10 +59,8 @@ export function EmptyState({
   const finalAction = actionLabel || defaultAction;
 
   return (
-    <View className="items-center justify-center p-6 my-8">
-      <View className="w-20 h-20 rounded-full bg-surface-muted items-center justify-center mb-4">
-        {defaultIcon}
-      </View>
+    <View className="items-center justify-center p-6 my-4">
+      {defaultIcon}
       <Text className="text-lg font-bold text-text-primary text-center mb-2">
         {finalTitle}
       </Text>
