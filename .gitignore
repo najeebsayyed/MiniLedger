@@ -47,6 +47,11 @@ dist/
 uploads/
 apps/api/uploads/
 
+# Specification files
+product.md
+agents.md
+architecture.md
+
 # fastlane
 #
 # It is recommended to not store the screenshots in the git repo. Instead, use fastlane to re-generate the
