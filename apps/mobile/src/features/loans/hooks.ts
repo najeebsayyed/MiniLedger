@@ -5,7 +5,7 @@ import {
   LoansListResponse,
   LoanDto,
 } from '@miniledger/contracts';
-import { createLoanApi, getLoansApi, getLoanByIdApi, repayLoanApi } from './api';
+import { createLoanApi, getLoansApi, getLoanByIdApi, repayLoanApi, attachReceiptToLoanApi, removeReceiptFromLoanApi } from './api';
 
 export function useLoans(query: LoanFilterQuery = {}) {
   return useQuery<LoansListResponse>({
@@ -45,6 +45,31 @@ export function useRepayLoan() {
       queryClient.setQueryData(['loan', data.id], data);
       queryClient.invalidateQueries({ queryKey: ['loans'] });
       queryClient.invalidateQueries({ queryKey: ['summary'] });
+    },
+  });
+}
+
+export function useAttachReceipt() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ loanId, base64Data }: { loanId: string; base64Data: string }) =>
+      attachReceiptToLoanApi(loanId, base64Data),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['loan', data.id], data);
+      queryClient.invalidateQueries({ queryKey: ['loans'] });
+    },
+  });
+}
+
+export function useRemoveReceipt() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (loanId: string) => removeReceiptFromLoanApi(loanId),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['loan', data.id], data);
+      queryClient.invalidateQueries({ queryKey: ['loans'] });
     },
   });
 }

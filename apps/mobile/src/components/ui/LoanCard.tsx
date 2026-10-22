@@ -4,7 +4,7 @@ import { LoanDto } from '@miniledger/contracts';
 import { StatusPill } from './StatusPill';
 import { formatInr } from '../../utils/currency';
 import { formatFriendlyDate } from '../../utils/dates';
-import { ChevronRight } from 'lucide-react-native';
+import { ChevronRight, Receipt } from 'lucide-react-native';
 
 interface LoanCardProps {
   loan: LoanDto;
@@ -45,6 +45,14 @@ export function LoanCard({ loan, onPress }: LoanCardProps) {
             ? `Repaid on ${formatFriendlyDate(loan.repaidAt || loan.updatedAt)}`
             : `Due ${formatFriendlyDate(loan.dueDate)}`}
         </Text>
+
+        {/* Receipt Attachment Indicator */}
+        {loan.receiptUrl ? (
+          <View className="flex-row items-center mt-1">
+            <Receipt size={12} color="#153E35" style={{ marginRight: 3 }} />
+            <Text className="text-[11px] font-semibold text-brand">Receipt attached</Text>
+          </View>
+        ) : null}
       </View>
 
       {/* Right Column: Amount & Status */}

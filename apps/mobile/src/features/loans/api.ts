@@ -41,3 +41,23 @@ export async function repayLoanApi(id: string): Promise<LoanDto> {
     method: 'PATCH',
   });
 }
+
+export async function uploadReceiptApi(base64Data: string): Promise<{ receiptUrl: string; filename: string }> {
+  return apiClient<{ receiptUrl: string; filename: string }>('/loans/upload-receipt', {
+    method: 'POST',
+    body: JSON.stringify({ receiptBase64: base64Data }),
+  });
+}
+
+export async function attachReceiptToLoanApi(loanId: string, receiptBase64: string): Promise<LoanDto> {
+  return apiClient<LoanDto>(`/loans/${loanId}/receipt`, {
+    method: 'POST',
+    body: JSON.stringify({ receiptBase64 }),
+  });
+}
+
+export async function removeReceiptFromLoanApi(loanId: string): Promise<LoanDto> {
+  return apiClient<LoanDto>(`/loans/${loanId}/receipt`, {
+    method: 'DELETE',
+  });
+}

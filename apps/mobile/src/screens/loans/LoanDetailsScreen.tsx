@@ -1,5 +1,16 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Alert,
+  Image,
+  Modal,
+  StyleSheet,
+  ActivityIndicator,
+  ScrollView,
+  Dimensions,
+} from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   ArrowLeft,
@@ -10,22 +21,47 @@ import {
   Clock,
   ShieldCheck,
   Receipt,
+  Eye,
+  Trash2,
+  Plus,
+  X,
+  ExternalLink,
 } from 'lucide-react-native';
 import { RootStackParamList } from '../../navigation/navigation-types';
-import { useLoan, useRepayLoan } from '../../features/loans/hooks';
+import { useLoan, useRepayLoan, useAttachReceipt, useRemoveReceipt } from '../../features/loans/hooks';
 import { Screen } from '../../components/ui/Screen';
 import { Button } from '../../components/ui/Button';
 import { StatusPill } from '../../components/ui/StatusPill';
 import { formatCurrency } from '../../utils/currency';
 import { formatDisplayDate, formatRelativeDueDate } from '../../utils/dates';
+import { getApiBaseUrl } from '../../lib/api-client';
+import { getAuthToken } from '../../lib/secure-storage';
 import { colors } from '../../theme/colors';
+import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'LoanDetails'>;
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export function LoanDetailsScreen({ route, navigation }: Props) {
   const { loanId } = route.params;
   const { data: loan, isLoading, isError, refetch } = useLoan(loanId);
   const repayMutation = useRepayLoan();
+  const attachReceiptMutation = useAttachReceipt();
+  const removeReceiptMutation = useRemoveReceipt();
+
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    async function loadToken() {
+      const token = await getAuthToken();
+      setAuthToken(token);
+    }
+    loadToken();
+  }, []);
 
   const handleMarkRepaid = () => {
     Alert.alert(
@@ -45,6 +81,83 @@ export function LoanDetailsScreen({ route, navigation }: Props) {
                 Alert.alert('Error', err.message || 'Failed to mark loan as repaid.');
               },
             });
+          },
+        },
+      ]
+    );
+  };
+
+  const handlePickNewReceipt = () => {
+    Alert.alert(
+      'Attach Receipt',
+      'Choose source for receipt photo:',
+      [
+        {
+          text: 'Choose from Gallery',
+          onPress: () => attachImage('gallery'),
+        },
+        {
+          text: 'Take Photo',
+          onPress: () => attachImage('camera'),
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
+  const attachImage = async (source: 'gallery' | 'camera') => {
+    try {
+      const options = {
+        mediaType: 'photo' as const,
+        quality: 0.7 as const,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        includeBase64: true,
+      };
+
+      const response =
+        source === 'camera'
+          ? await launchCamera(options)
+          : await launchImageLibrary(options);
+
+      if (response.didCancel) return;
+
+      const asset = response.assets?.[0];
+      if (asset?.base64) {
+        const base64Data = `data:${asset.type || 'image/jpeg'};base64,${asset.base64}`;
+        await attachReceiptMutation.mutateAsync({
+          loanId,
+          base64Data,
+        });
+        setImageError(false);
+        setImageLoading(true);
+        Alert.alert('Receipt Attached', 'Receipt was successfully added to this loan record.');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Could not attach receipt image.');
+    }
+  };
+
+  const handleRemoveReceipt = () => {
+    Alert.alert(
+      'Remove Receipt',
+      'Are you sure you want to delete the attached receipt from this loan?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await removeReceiptMutation.mutateAsync(loanId);
+              setIsPreviewModalOpen(false);
+              Alert.alert('Receipt Removed', 'The receipt attachment has been removed.');
+            } catch (err: any) {
+              Alert.alert('Error', err?.message || 'Could not remove receipt.');
+            }
           },
         },
       ]
@@ -104,8 +217,16 @@ export function LoanDetailsScreen({ route, navigation }: Props) {
   const isRepaid = loan.status === 'REPAID';
   const isOverdue = loan.isOverdue;
 
+  // Build safe receipt URL
+  const apiBase = getApiBaseUrl().replace(/\/api\/v1\/?$/, '');
+  const fullReceiptUri = loan.receiptUrl
+    ? loan.receiptUrl.startsWith('http')
+      ? loan.receiptUrl
+      : `${apiBase}${loan.receiptUrl}`
+    : null;
+
   return (
-    <Screen scrollable={true}>
+    <Screen scrollable={true} contentContainerStyle={{ paddingBottom: 60 }}>
       {/* Top Header */}
       <View className="flex-row items-center justify-between pb-4 border-b border-border mb-6">
         <TouchableOpacity
@@ -229,6 +350,74 @@ export function LoanDetailsScreen({ route, navigation }: Props) {
         </View>
       </View>
 
+      {/* Receipt Proof Section */}
+      <View style={styles.receiptSection}>
+        <View style={styles.receiptSectionHeader}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Receipt size={16} color="#153E35" style={{ marginRight: 6 }} />
+            <Text style={styles.receiptSectionTitle}>Payment Receipt / Proof</Text>
+          </View>
+          {fullReceiptUri && (
+            <TouchableOpacity onPress={handleRemoveReceipt} style={styles.removeLink}>
+              <Trash2 size={13} color="#DC2626" />
+              <Text style={styles.removeLinkText}>Remove</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {fullReceiptUri ? (
+          <TouchableOpacity
+            onPress={() => setIsPreviewModalOpen(true)}
+            style={styles.receiptCard}
+            activeOpacity={0.8}
+          >
+            <View style={styles.thumbnailWrapper}>
+              <Image
+                source={{
+                  uri: fullReceiptUri,
+                  headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
+                }}
+                style={styles.thumbnailImage}
+                onLoadStart={() => setImageLoading(true)}
+                onLoadEnd={() => setImageLoading(false)}
+                onError={() => {
+                  setImageLoading(false);
+                  setImageError(true);
+                }}
+              />
+              {imageLoading && (
+                <View style={styles.thumbnailLoading}>
+                  <ActivityIndicator size="small" color="#153E35" />
+                </View>
+              )}
+              {imageError && (
+                <View style={styles.thumbnailError}>
+                  <AlertTriangle size={18} color="#DC2626" />
+                </View>
+              )}
+            </View>
+
+            <View style={styles.receiptCardInfo}>
+              <Text style={styles.receiptCardTitle}>Attached Receipt</Text>
+              <Text style={styles.receiptCardSubtitle}>Tap to open full image preview</Text>
+              <View style={styles.viewBadge}>
+                <Eye size={12} color="#153E35" style={{ marginRight: 4 }} />
+                <Text style={styles.viewBadgeText}>View Receipt</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            onPress={handlePickNewReceipt}
+            style={styles.addReceiptEmptyCard}
+            activeOpacity={0.7}
+          >
+            <Plus size={18} color="#153E35" style={{ marginRight: 6 }} />
+            <Text style={styles.addReceiptEmptyText}>Attach a receipt photo or bill</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
       {/* Action Area */}
       <View className="mt-2 mb-8">
         {!isRepaid ? (
@@ -249,6 +438,206 @@ export function LoanDetailsScreen({ route, navigation }: Props) {
           </View>
         )}
       </View>
+
+      {/* FULL RECEIPT PREVIEW MODAL */}
+      <Modal
+        visible={isPreviewModalOpen}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setIsPreviewModalOpen(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          {/* Header Bar */}
+          <View style={styles.modalTopBar}>
+            <View>
+              <Text style={styles.modalReceiptTitle}>Loan Receipt</Text>
+              <Text style={styles.modalReceiptSubtitle}>
+                {loan.friendName} • {formatCurrency(loan.amount)}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setIsPreviewModalOpen(false)}
+              style={styles.modalCloseBtn}
+            >
+              <X size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Image Container */}
+          <View style={styles.modalImageContainer}>
+            {fullReceiptUri && (
+              <Image
+                source={{
+                  uri: fullReceiptUri,
+                  headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
+                }}
+                style={styles.modalFullImage}
+                resizeMode="contain"
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  receiptSection: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 20,
+  },
+  receiptSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  receiptSectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#153E35',
+  },
+  removeLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 4,
+  },
+  removeLinkText: {
+    fontSize: 11,
+    color: '#DC2626',
+    fontWeight: '600',
+    marginLeft: 3,
+  },
+  receiptCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAF6',
+    borderWidth: 1,
+    borderColor: '#D8E2D5',
+    borderRadius: 14,
+    padding: 10,
+  },
+  thumbnailWrapper: {
+    width: 64,
+    height: 64,
+    borderRadius: 10,
+    overflow: 'hidden',
+    backgroundColor: '#E2EBDC',
+    position: 'relative',
+    marginRight: 12,
+  },
+  thumbnailImage: {
+    width: '100%',
+    height: '100%',
+  },
+  thumbnailLoading: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.7)',
+  },
+  thumbnailError: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEE2E2',
+  },
+  receiptCardInfo: {
+    flex: 1,
+  },
+  receiptCardTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  receiptCardSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+    marginBottom: 6,
+  },
+  viewBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#D8F36A',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  viewBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#153E35',
+  },
+  addReceiptEmptyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#CBD5E1',
+    borderRadius: 12,
+    paddingVertical: 14,
+    backgroundColor: '#F8FAF6',
+  },
+  addReceiptEmptyText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#153E35',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+    justifyContent: 'space-between',
+  },
+  modalTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 48,
+    paddingBottom: 16,
+  },
+  modalReceiptTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  modalReceiptSubtitle: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+  modalCloseBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalImageContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  modalFullImage: {
+    width: SCREEN_WIDTH - 32,
+    height: SCREEN_HEIGHT - 180,
+  },
+});
