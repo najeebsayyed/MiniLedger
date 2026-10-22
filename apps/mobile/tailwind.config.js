@@ -1,0 +1,40 @@
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: [
+    './App.{js,jsx,ts,tsx}',
+    './src/**/*.{js,jsx,ts,tsx}',
+    '../../packages/contracts/src/**/*.{js,jsx,ts,tsx}',
+  ],
+  presets: [require('nativewind/preset')],
+  theme: {
+    extend: {
+      colors: {
+        background: '#F6F7F2',
+        surface: '#FFFFFF',
+        'surface-card': '#FFFFFF',
+        'surface-muted': '#EEF2E9',
+        'surface-subtle': '#F6F7F2',
+        'text-primary': '#16231F',
+        'text-secondary': '#68756E',
+        'text-muted': '#8C9B94',
+        brand: '#153E35',
+        'brand-accent': '#D8F36A',
+        'status-overdue': '#C94E42',
+        'status-overdue-bg': '#FBE9E6',
+        'status-overdue-border': '#F5C6C2',
+        'status-repaid': '#247A57',
+        'status-repaid-bg': '#EAF6EF',
+        'status-repaid-border': '#BDE8CE',
+        border: '#E1E6DE',
+        'border-subtle': '#E1E6DE',
+        overdue: '#C94E42',
+        'overdue-surface': '#FBE9E6',
+        success: '#247A57',
+      },
+      spacing: { screen: '20px' },
+      borderRadius: { card: '24px', input: '16px' },
+      fontFamily: { sans: ['System'] },
+    },
+  },
+  plugins: [],
+};
