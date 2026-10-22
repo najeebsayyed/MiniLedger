@@ -12,8 +12,9 @@ const monorepoRoot = path.resolve(projectRoot, '../..');
  * @type {import('metro-config').MetroConfig}
  */
 const config = {
+  projectRoot,
   watchFolders: [
-    path.resolve(monorepoRoot, 'packages/contracts'),
+    monorepoRoot,
   ],
   resolver: {
     nodeModulesPaths: [
@@ -24,5 +25,6 @@ const config = {
 };
 
 module.exports = withNativeWind(mergeConfig(getDefaultConfig(__dirname), config), {
-  input: './global.css',
+  input: path.resolve(__dirname, 'global.css'),
+  configPath: path.resolve(__dirname, 'tailwind.config.js'),
 });

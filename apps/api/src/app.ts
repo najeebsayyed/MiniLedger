@@ -34,8 +34,8 @@ export function createApp() {
   app.use(express.json({ limit: '100kb' }));
 
   // Health endpoint
-  app.get('/healthz', (req, res) => {
-    res.status(200).json({ data: { status: 'ok' } });
+  app.get(['/healthz', '/health'], (req, res) => {
+    res.status(200).json({ data: { status: 'ok', service: 'miniledger-api' } });
   });
 
   // API v1 routes

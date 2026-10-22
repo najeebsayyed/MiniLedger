@@ -2,11 +2,8 @@ import { Platform } from 'react-native';
 import { getAuthToken, clearAuthToken } from './secure-storage';
 
 // Default development base URL
-// Android emulator uses 10.0.2.2 to reach host machine; iOS simulator / web uses localhost
-export const DEFAULT_API_BASE_URL =
-  Platform.OS === 'android'
-    ? 'http://10.0.2.2:4000/api/v1'
-    : 'http://localhost:4000/api/v1';
+// With 'adb reverse tcp:4000 tcp:4000', localhost:4000 connects directly from both physical Android devices and emulators
+export const DEFAULT_API_BASE_URL = 'http://localhost:4000/api/v1';
 
 let currentApiBaseUrl = DEFAULT_API_BASE_URL;
 
