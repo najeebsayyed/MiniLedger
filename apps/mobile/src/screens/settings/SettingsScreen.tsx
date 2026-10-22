@@ -1,39 +1,165 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   Alert,
   TouchableOpacity,
-  ScrollView,
   StyleSheet,
   ActivityIndicator,
+  Image,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from 'react-native';
 import {
   User,
+  Camera,
+  Trash2,
+  Edit3,
+  Phone,
   ShieldCheck,
-  Terminal,
-  Database,
-  Smartphone,
-  LogOut,
-  Info,
-  Layers,
-  Sparkles,
-  RefreshCw,
-  RotateCcw,
   Check,
-  Server,
-  Key,
+  X,
+  ChevronRight,
+  Info,
+  Lock,
+  LogOut,
+  Coins,
+  Globe,
+  RotateCcw,
+  Sparkles,
 } from 'lucide-react-native';
+import { launchImageLibrary } from 'react-native-image-picker';
 import { Screen } from '../../components/ui/Screen';
 import { Button } from '../../components/ui/Button';
 import { useAuth } from '../../features/auth/AuthContext';
-import { queryClient } from '../../lib/query-client';
+import { saveUserAvatar, getUserAvatar } from '../../lib/secure-storage';
 import { colors } from '../../theme/colors';
 
 export function SettingsScreen() {
-  const { user, signOut, resetOnboardingState } = useAuth();
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [justRefreshed, setJustRefreshed] = useState(false);
+  const { user, signOut, updateProfile, resetOnboardingState } = useAuth();
+
+  // Local state
+  const [avatarUri, setAvatarUri] = useState<string | null>(user?.avatarUrl || null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
+  const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
+
+  // Profile Edit form state
+  const [displayNameInput, setDisplayNameInput] = useState(user?.name || '');
+  const [pendingAvatarUri, setPendingAvatarUri] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
+
+  // Sync avatar from local storage or user object on mount
+  useEffect(() => {
+    async function loadAvatar() {
+      if (user?.avatarUrl) {
+        setAvatarUri(user.avatarUrl);
+      } else {
+        const storedAvatar = await getUserAvatar();
+        if (storedAvatar) {
+          setAvatarUri(storedAvatar);
+        }
+      }
+    }
+    loadAvatar();
+  }, [user?.avatarUrl]);
+
+  const handleOpenEditModal = () => {
+    setDisplayNameInput(user?.name || '');
+    setPendingAvatarUri(avatarUri);
+    setNameError(null);
+    setIsEditModalOpen(true);
+  };
+
+  const handleCloseEditModal = () => {
+    setIsEditModalOpen(false);
+    setNameError(null);
+  };
+
+  // Image picker handler
+  const handlePickPhoto = async () => {
+    try {
+      const response = await launchImageLibrary({
+        mediaType: 'photo',
+        quality: 0.7,
+        maxWidth: 400,
+        maxHeight: 400,
+        includeBase64: true,
+      });
+
+      if (response.didCancel) {
+        return;
+      }
+
+      if (response.errorCode) {
+        if (response.errorCode === 'permission') {
+          Alert.alert(
+            'Permission Denied',
+            'MiniLedger needs access to your photo library to set a profile photo. Please enable photo permissions in device settings.'
+          );
+        } else {
+          Alert.alert('Error', response.errorMessage || 'Failed to select image.');
+        }
+        return;
+      }
+
+      const asset = response.assets?.[0];
+      if (asset) {
+        // Construct durable base64 data URI to prevent temporary file expiry
+        const uri = asset.base64
+          ? `data:${asset.type || 'image/jpeg'};base64,${asset.base64}`
+          : asset.uri || null;
+
+        if (uri) {
+          setPendingAvatarUri(uri);
+        }
+      }
+    } catch (err) {
+      Alert.alert('Error', 'An unexpected error occurred while selecting a photo.');
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    setPendingAvatarUri(null);
+  };
+
+  const handleSaveProfile = async () => {
+    const trimmedName = displayNameInput.trim();
+    if (!trimmedName) {
+      setNameError('Please enter a valid display name.');
+      return;
+    }
+    if (trimmedName.length > 50) {
+      setNameError('Name must be 50 characters or fewer.');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      setNameError(null);
+
+      // Persist to backend
+      await updateProfile({
+        name: trimmedName,
+        avatarUrl: pendingAvatarUri,
+      });
+
+      // Persist avatar to durable local device storage
+      await saveUserAvatar(pendingAvatarUri);
+      setAvatarUri(pendingAvatarUri);
+
+      setIsEditModalOpen(false);
+      Alert.alert('Profile Updated', 'Your profile details have been saved.');
+    } catch (err: any) {
+      setNameError(err?.message || 'Failed to update profile. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -54,8 +180,8 @@ export function SettingsScreen() {
 
   const handleResetOnboarding = () => {
     Alert.alert(
-      'Reset Onboarding Tour',
-      'This will reset your onboarding state. Next time you sign out or restart the app, the 4-slide introductory tour will be shown.',
+      'Replay Product Tour',
+      'This will reset your onboarding state. Next time you sign out or reopen the app, the 4-slide introductory tour will be shown.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -64,25 +190,12 @@ export function SettingsScreen() {
             await resetOnboardingState();
             Alert.alert(
               'Tour Reset',
-              'Onboarding flag has been reset. You will see the walkthrough on your next login session.'
+              'Onboarding walkthrough has been reset. You will see it on your next login.'
             );
           },
         },
       ]
     );
-  };
-
-  const handleRefreshCache = async () => {
-    setIsRefreshing(true);
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['summary'] }),
-      queryClient.invalidateQueries({ queryKey: ['loans'] }),
-    ]);
-    setTimeout(() => {
-      setIsRefreshing(false);
-      setJustRefreshed(true);
-      setTimeout(() => setJustRefreshed(false), 2500);
-    }, 500);
   };
 
   // Format phone number nicely (e.g. +91 98765 43210)
@@ -94,208 +207,383 @@ export function SettingsScreen() {
     return rawPhone;
   };
 
-  // Get user initials or default ML
-  const getInitials = (phone?: string) => {
-    if (!phone) return 'ML';
-    const digits = phone.replace(/\D/g, '');
-    return digits.length >= 2 ? digits.slice(-2) : 'ML';
+  // Initials generator
+  const getInitials = (name?: string | null, phone?: string) => {
+    if (name && name.trim().length > 0) {
+      const parts = name.trim().split(/\s+/);
+      if (parts.length >= 2) {
+        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+      }
+      return parts[0].slice(0, 2).toUpperCase();
+    }
+    if (phone) {
+      const digits = phone.replace(/\D/g, '');
+      return digits.length >= 2 ? digits.slice(-2) : 'ML';
+    }
+    return 'ML';
   };
 
   return (
     <Screen scrollable={true} contentContainerStyle={styles.container}>
-      {/* Screen Header */}
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Account & Settings</Text>
+        <Text style={styles.headerTitle}>Account</Text>
         <Text style={styles.headerSubtitle}>
-          Session management, technical specifications & developer controls
+          Manage your personal profile and account settings
         </Text>
       </View>
 
       {/* Profile Card */}
       <View style={styles.profileCard}>
-        <View style={styles.profileHeader}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{getInitials(user?.phoneNumber)}</Text>
-          </View>
-
-          <View style={styles.profileInfo}>
-            <View style={styles.verifiedRow}>
-              <View style={styles.verifiedBadge}>
-                <ShieldCheck size={12} color="#15803D" />
-                <Text style={styles.verifiedText}>Verified Session</Text>
+        <View style={styles.profileTopRow}>
+          {/* Avatar with click-to-edit action */}
+          <TouchableOpacity
+            onPress={handleOpenEditModal}
+            activeOpacity={0.8}
+            style={styles.avatarWrapper}
+          >
+            {avatarUri ? (
+              <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Text style={styles.avatarText}>
+                  {getInitials(user?.name, user?.phoneNumber)}
+                </Text>
               </View>
+            )}
+            <View style={styles.avatarBadge}>
+              <Camera size={13} color="#153E35" />
+            </View>
+          </TouchableOpacity>
+
+          <View style={styles.profileDetails}>
+            <Text style={styles.userName} numberOfLines={1}>
+              {user?.name || 'Personal Account'}
+            </Text>
+
+            <View style={styles.phoneRow}>
+              <Phone size={13} color="#64748B" />
+              <Text style={styles.userPhone}>
+                {formatPhone(user?.phoneNumber)}
+              </Text>
             </View>
 
-            <Text style={styles.phoneNumber}>
-              {formatPhone(user?.phoneNumber)}
-            </Text>
-
-            <Text style={styles.userIdText}>
-              ID: {user?.id ? `${user.id.slice(0, 14)}...` : 'demo-user-id'}
-            </Text>
+            <View style={styles.verifiedRow}>
+              <View style={styles.verifiedPill}>
+                <ShieldCheck size={12} color="#15803D" />
+                <Text style={styles.verifiedPillText}>Verified Account</Text>
+              </View>
+            </View>
           </View>
         </View>
 
-        <View style={styles.profileFooter}>
-          <View style={styles.profileStatItem}>
-            <Text style={styles.profileStatLabel}>Auth Method</Text>
-            <Text style={styles.profileStatValue}>Phone + Mock OTP</Text>
-          </View>
-          <View style={styles.profileStatDivider} />
-          <View style={styles.profileStatItem}>
-            <Text style={styles.profileStatLabel}>Security</Text>
-            <Text style={styles.profileStatValue}>JWT in Keychain</Text>
-          </View>
-          <View style={styles.profileStatDivider} />
-          <View style={styles.profileStatItem}>
-            <Text style={styles.profileStatLabel}>Database Scope</Text>
-            <Text style={styles.profileStatValue}>User-Isolated</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Developer & Demo Controls */}
-      <Text style={styles.sectionHeading}>DEMO & DEVELOPER ACTIONS</Text>
-
-      <View style={styles.menuContainer}>
-        {/* Sync / Invalidate Cache */}
+        {/* Edit Profile CTA */}
         <TouchableOpacity
-          onPress={handleRefreshCache}
-          disabled={isRefreshing}
-          style={styles.menuItem}
+          onPress={handleOpenEditModal}
+          style={styles.editProfileButton}
           activeOpacity={0.7}
         >
-          <View style={[styles.menuIconContainer, { backgroundColor: '#F0FDF4' }]}>
-            {isRefreshing ? (
-              <ActivityIndicator size="small" color="#16A34A" />
-            ) : justRefreshed ? (
-              <Check size={18} color="#16A34A" />
-            ) : (
-              <RefreshCw size={18} color="#16A34A" />
-            )}
+          <Edit3 size={15} color="#153E35" />
+          <Text style={styles.editProfileButtonText}>Edit Profile</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Account Settings Menu */}
+      <Text style={styles.sectionTitle}>ACCOUNT & PREFERENCES</Text>
+      <View style={styles.menuBox}>
+        {/* Edit Profile Row */}
+        <TouchableOpacity
+          onPress={handleOpenEditModal}
+          style={styles.menuRow}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.menuIconCircle, { backgroundColor: '#F0FDF4' }]}>
+            <User size={18} color="#15803D" />
           </View>
-          <View style={styles.menuTextContainer}>
-            <Text style={styles.menuTitle}>Force Invalidate & Sync Data</Text>
-            <Text style={styles.menuSubtitle}>
-              {justRefreshed
-                ? 'All queries re-fetched from server!'
-                : 'Re-fetch dashboard summary and loan ledger from PostgreSQL'}
+          <View style={styles.menuContent}>
+            <Text style={styles.menuLabel}>Personal Information</Text>
+            <Text style={styles.menuValue}>
+              {user?.name ? user.name : 'Set display name and photo'}
             </Text>
           </View>
+          <ChevronRight size={18} color="#94A3B8" />
         </TouchableOpacity>
 
-        {/* Reset Onboarding Walkthrough */}
+        {/* Currency Row */}
+        <View style={[styles.menuRow, styles.rowBorder]}>
+          <View style={[styles.menuIconCircle, { backgroundColor: '#FEF3C7' }]}>
+            <Coins size={18} color="#B45309" />
+          </View>
+          <View style={styles.menuContent}>
+            <Text style={styles.menuLabel}>Default Currency</Text>
+            <Text style={styles.menuValue}>₹ INR — Indian Rupee</Text>
+          </View>
+          <View style={styles.fixedPill}>
+            <Text style={styles.fixedPillText}>Default</Text>
+          </View>
+        </View>
+
+        {/* Replay Onboarding */}
         <TouchableOpacity
           onPress={handleResetOnboarding}
-          style={[styles.menuItem, styles.menuItemBorder]}
+          style={[styles.menuRow, styles.rowBorder]}
           activeOpacity={0.7}
         >
-          <View style={[styles.menuIconContainer, { backgroundColor: '#F0F9FF' }]}>
+          <View style={[styles.menuIconCircle, { backgroundColor: '#F0F9FF' }]}>
             <RotateCcw size={18} color="#0284C7" />
           </View>
-          <View style={styles.menuTextContainer}>
-            <Text style={styles.menuTitle}>Reset Onboarding Walkthrough</Text>
-            <Text style={styles.menuSubtitle}>
-              Show the 4-slide introductory product tour on the next app launch
-            </Text>
+          <View style={styles.menuContent}>
+            <Text style={styles.menuLabel}>Replay Product Tour</Text>
+            <Text style={styles.menuValue}>View the 4-slide onboarding guide again</Text>
           </View>
+          <ChevronRight size={18} color="#94A3B8" />
         </TouchableOpacity>
       </View>
 
-      {/* Mock Authentication Disclosure */}
-      <View style={styles.disclosureCard}>
-        <View style={styles.disclosureHeader}>
-          <View style={styles.disclosureIconWrap}>
-            <Terminal size={16} color="#153E35" />
+      {/* Security & Privacy */}
+      <Text style={styles.sectionTitle}>SECURITY & PRIVACY</Text>
+      <View style={styles.menuBox}>
+        {/* Security Info */}
+        <TouchableOpacity
+          onPress={() => setIsSecurityModalOpen(true)}
+          style={styles.menuRow}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.menuIconCircle, { backgroundColor: '#F5F3FF' }]}>
+            <Lock size={18} color="#7C3AED" />
           </View>
-          <Text style={styles.disclosureTitle}>Developer Mock OTP Architecture</Text>
-        </View>
-        <Text style={styles.disclosureBody}>
-          As mandated by the internship assignment, MiniLedger uses a server-side mock OTP provider in local development. When you request a login code, a random 6-digit OTP is securely logged directly to your Node.js backend console, bypassing commercial SMS gateway costs while exercising full cryptographic JWT verification.
-        </Text>
+          <View style={styles.menuContent}>
+            <Text style={styles.menuLabel}>Session & Security</Text>
+            <Text style={styles.menuValue}>Encrypted Keychain & Phone Verification</Text>
+          </View>
+          <ChevronRight size={18} color="#94A3B8" />
+        </TouchableOpacity>
+
+        {/* About MiniLedger */}
+        <TouchableOpacity
+          onPress={() => setIsAboutModalOpen(true)}
+          style={[styles.menuRow, styles.rowBorder]}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.menuIconCircle, { backgroundColor: '#F1F5F9' }]}>
+            <Info size={18} color="#475569" />
+          </View>
+          <View style={styles.menuContent}>
+            <Text style={styles.menuLabel}>About MiniLedger</Text>
+            <Text style={styles.menuValue}>Version 1.0.0 • Calm Loan Tracker</Text>
+          </View>
+          <ChevronRight size={18} color="#94A3B8" />
+        </TouchableOpacity>
       </View>
 
-      {/* Technical Specifications */}
-      <Text style={styles.sectionHeading}>FULL-STACK ARCHITECTURE</Text>
-
-      <View style={styles.specsCard}>
-        <View style={styles.specRow}>
-          <View style={styles.specLabelRow}>
-            <Smartphone size={16} color="#64748B" />
-            <Text style={styles.specLabel}>Mobile App</Text>
-          </View>
-          <Text style={styles.specValue}>React Native CLI 0.88 (Bare)</Text>
-        </View>
-
-        <View style={styles.specDivider} />
-
-        <View style={styles.specRow}>
-          <View style={styles.specLabelRow}>
-            <Sparkles size={16} color="#64748B" />
-            <Text style={styles.specLabel}>Styling & Design</Text>
-          </View>
-          <Text style={styles.specValue}>NativeWind v4 + Tailwind CSS</Text>
-        </View>
-
-        <View style={styles.specDivider} />
-
-        <View style={styles.specRow}>
-          <View style={styles.specLabelRow}>
-            <Server size={16} color="#64748B" />
-            <Text style={styles.specLabel}>API Server</Text>
-          </View>
-          <Text style={styles.specValue}>Node.js + Express + TypeScript</Text>
-        </View>
-
-        <View style={styles.specDivider} />
-
-        <View style={styles.specRow}>
-          <View style={styles.specLabelRow}>
-            <Database size={16} color="#64748B" />
-            <Text style={styles.specLabel}>Database & ORM</Text>
-          </View>
-          <Text style={styles.specValue}>PostgreSQL 16 + Drizzle ORM</Text>
-        </View>
-
-        <View style={styles.specDivider} />
-
-        <View style={styles.specRow}>
-          <View style={styles.specLabelRow}>
-            <Layers size={16} color="#64748B" />
-            <Text style={styles.specLabel}>Shared Contracts</Text>
-          </View>
-          <Text style={styles.specValue}>Zod Schemas (@miniledger/contracts)</Text>
-        </View>
-
-        <View style={styles.specDivider} />
-
-        <View style={styles.specRow}>
-          <View style={styles.specLabelRow}>
-            <Key size={16} color="#64748B" />
-            <Text style={styles.specLabel}>Token Storage</Text>
-          </View>
-          <Text style={styles.specValue}>react-native-keychain (Encrypted)</Text>
-        </View>
-      </View>
-
-      {/* App Version Info */}
-      <View style={styles.versionContainer}>
-        <Info size={14} color="#94A3B8" />
-        <Text style={styles.versionText}>
-          MiniLedger Build v1.0.0 • Strict TypeScript • Production-Minded
-        </Text>
-      </View>
-
-      {/* Logout Action */}
-      <View style={styles.logoutWrapper}>
+      {/* Sign Out Button */}
+      <View style={styles.signOutWrapper}>
         <Button
-          label="Sign Out of MiniLedger"
+          label="Sign Out"
           onPress={handleLogout}
           variant="destructive"
           size="lg"
           icon={<LogOut size={18} color="#FFFFFF" />}
         />
       </View>
+
+      {/* EDIT PROFILE MODAL */}
+      <Modal
+        visible={isEditModalOpen}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={handleCloseEditModal}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalCard}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Profile</Text>
+              <TouchableOpacity
+                onPress={handleCloseEditModal}
+                style={styles.modalCloseButton}
+              >
+                <X size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Photo Avatar Preview & Actions */}
+              <View style={styles.modalAvatarSection}>
+                <View style={styles.modalAvatarContainer}>
+                  {pendingAvatarUri ? (
+                    <Image
+                      source={{ uri: pendingAvatarUri }}
+                      style={styles.modalAvatarImage}
+                    />
+                  ) : (
+                    <View style={styles.modalAvatarPlaceholder}>
+                      <Text style={styles.modalAvatarText}>
+                        {getInitials(displayNameInput || user?.name, user?.phoneNumber)}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.photoActionsRow}>
+                  <TouchableOpacity
+                    onPress={handlePickPhoto}
+                    style={styles.photoActionButton}
+                    activeOpacity={0.7}
+                  >
+                    <Camera size={14} color="#153E35" />
+                    <Text style={styles.photoActionText}>
+                      {pendingAvatarUri ? 'Change Photo' : 'Choose Photo'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {pendingAvatarUri && (
+                    <TouchableOpacity
+                      onPress={handleRemovePhoto}
+                      style={[styles.photoActionButton, styles.removePhotoButton]}
+                      activeOpacity={0.7}
+                    >
+                      <Trash2 size={14} color="#DC2626" />
+                      <Text style={[styles.photoActionText, styles.removePhotoText]}>
+                        Remove
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+
+              {/* Display Name Input */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Display Name</Text>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    nameError ? styles.textInputError : undefined,
+                  ]}
+                  value={displayNameInput}
+                  onChangeText={(val) => {
+                    setDisplayNameInput(val);
+                    if (nameError) setNameError(null);
+                  }}
+                  placeholder="e.g., Arjun Mehta"
+                  placeholderTextColor="#94A3B8"
+                  maxLength={50}
+                  autoCapitalize="words"
+                />
+                {nameError ? (
+                  <Text style={styles.errorText}>{nameError}</Text>
+                ) : (
+                  <Text style={styles.helperText}>
+                    This name will appear on your financial dashboard and receipts.
+                  </Text>
+                )}
+              </View>
+
+              {/* Read-Only Phone Number */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Phone Number</Text>
+                <View style={styles.readOnlyPhoneBox}>
+                  <Lock size={15} color="#94A3B8" style={{ marginRight: 8 }} />
+                  <Text style={styles.readOnlyPhoneText}>
+                    {formatPhone(user?.phoneNumber)}
+                  </Text>
+                  <View style={styles.verifiedSmallBadge}>
+                    <Text style={styles.verifiedSmallBadgeText}>Verified</Text>
+                  </View>
+                </View>
+                <Text style={styles.helperText}>
+                  Your phone number is cryptographically linked to your session.
+                </Text>
+              </View>
+
+              {/* Action Buttons */}
+              <View style={styles.modalButtonsRow}>
+                <TouchableOpacity
+                  onPress={handleCloseEditModal}
+                  disabled={isSaving}
+                  style={styles.cancelButton}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={handleSaveProfile}
+                  disabled={isSaving}
+                  style={styles.saveButton}
+                  activeOpacity={0.7}
+                >
+                  {isSaving ? (
+                    <ActivityIndicator size="small" color="#153E35" />
+                  ) : (
+                    <Text style={styles.saveButtonText}>Save Changes</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ABOUT MODAL */}
+      <Modal
+        visible={isAboutModalOpen}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setIsAboutModalOpen(false)}
+      >
+        <View style={styles.infoModalOverlay}>
+          <View style={styles.infoModalCard}>
+            <View style={styles.infoModalHeader}>
+              <Sparkles size={24} color="#153E35" />
+              <Text style={styles.infoModalTitle}>About MiniLedger</Text>
+            </View>
+            <Text style={styles.infoModalBody}>
+              MiniLedger is designed for personal peer-to-peer lending with calm clarity. It helps you keep track of money lent to friends, monitor repayment progress, and eliminate awkward conversations about unpaid loans.
+            </Text>
+            <View style={styles.infoModalDivider} />
+            <Text style={styles.infoModalVersion}>Version 1.0.0 (Production Release)</Text>
+            <TouchableOpacity
+              onPress={() => setIsAboutModalOpen(false)}
+              style={styles.infoModalCloseButton}
+            >
+              <Text style={styles.infoModalCloseText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* SECURITY MODAL */}
+      <Modal
+        visible={isSecurityModalOpen}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setIsSecurityModalOpen(false)}
+      >
+        <View style={styles.infoModalOverlay}>
+          <View style={styles.infoModalCard}>
+            <View style={styles.infoModalHeader}>
+              <ShieldCheck size={24} color="#15803D" />
+              <Text style={styles.infoModalTitle}>Security & Privacy</Text>
+            </View>
+            <Text style={styles.infoModalBody}>
+              • Passwordless phone verification with single-use challenges.{'\n'}
+              • Cryptographic JWT access tokens stored in native hardware-backed Keychains.{'\n'}
+              • All ledger records and financial totals are strictly user-isolated.{'\n'}
+              • Exact decimal calculations ensure financial accounting precision without floating-point drift.
+            </Text>
+            <TouchableOpacity
+              onPress={() => setIsSecurityModalOpen(false)}
+              style={styles.infoModalCloseButton}
+            >
+              <Text style={styles.infoModalCloseText}>Understood</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </Screen>
   );
 }
@@ -304,7 +592,7 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 48,
+    paddingBottom: 90,
   },
   header: {
     marginBottom: 20,
@@ -319,7 +607,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#64748B',
     marginTop: 4,
-    lineHeight: 18,
   },
   profileCard: {
     backgroundColor: '#FFFFFF',
@@ -334,92 +621,106 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 2,
   },
-  profileHeader: {
+  profileTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
   },
-  avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  avatarWrapper: {
+    position: 'relative',
+    marginRight: 16,
+  },
+  avatarImage: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 2,
+    borderColor: '#D8F36A',
+  },
+  avatarPlaceholder: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: '#153E35',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: '#D8F36A',
-    marginRight: 16,
   },
   avatarText: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '800',
     color: '#D8F36A',
     letterSpacing: -0.5,
   },
-  profileInfo: {
+  avatarBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#D8F36A',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  profileDetails: {
     flex: 1,
   },
-  verifiedRow: {
-    flexDirection: 'row',
-    marginBottom: 4,
+  userName: {
+    fontSize: 19,
+    fontWeight: '700',
+    color: '#0F172A',
+    letterSpacing: -0.3,
   },
-  verifiedBadge: {
+  phoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  userPhone: {
+    fontSize: 13,
+    color: '#64748B',
+    marginLeft: 6,
+    fontWeight: '500',
+  },
+  verifiedRow: {
+    marginTop: 6,
+    flexDirection: 'row',
+  },
+  verifiedPill: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#DCFCE7',
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 12,
+    borderRadius: 10,
   },
-  verifiedText: {
+  verifiedPillText: {
     fontSize: 11,
     fontWeight: '700',
     color: '#15803D',
     marginLeft: 4,
   },
-  phoneNumber: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
-    letterSpacing: -0.2,
-  },
-  userIdText: {
-    fontSize: 11,
-    color: '#94A3B8',
-    fontFamily: 'monospace',
-    marginTop: 2,
-  },
-  profileFooter: {
+  editProfileButton: {
     flexDirection: 'row',
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    justifyContent: 'space-between',
-  },
-  profileStatItem: {
-    flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAF6',
+    borderWidth: 1,
+    borderColor: '#D8E2D5',
+    paddingVertical: 10,
+    borderRadius: 12,
   },
-  profileStatDivider: {
-    width: 1,
-    backgroundColor: '#E2E8F0',
-    height: '70%',
-    alignSelf: 'center',
-  },
-  profileStatLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#94A3B8',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 2,
-  },
-  profileStatValue: {
-    fontSize: 11,
+  editProfileButtonText: {
+    fontSize: 13,
     fontWeight: '700',
     color: '#153E35',
+    marginLeft: 6,
   },
-  sectionHeading: {
+  sectionTitle: {
     fontSize: 11,
     fontWeight: '800',
     color: '#64748B',
@@ -427,7 +728,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     marginLeft: 4,
   },
-  menuContainer: {
+  menuBox: {
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
     borderWidth: 1,
@@ -435,116 +736,274 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     overflow: 'hidden',
   },
-  menuItem: {
+  menuRow: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
   },
-  menuItemBorder: {
+  rowBorder: {
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
   },
-  menuIconContainer: {
-    width: 40,
-    height: 40,
+  menuIconCircle: {
+    width: 38,
+    height: 38,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
   },
-  menuTextContainer: {
+  menuContent: {
     flex: 1,
   },
-  menuTitle: {
+  menuLabel: {
     fontSize: 14,
     fontWeight: '700',
     color: '#0F172A',
   },
-  menuSubtitle: {
+  menuValue: {
     fontSize: 12,
     color: '#64748B',
     marginTop: 2,
-    lineHeight: 16,
   },
-  disclosureCard: {
-    backgroundColor: '#F8FAF6',
-    borderRadius: 18,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: '#E2EBDC',
-    marginBottom: 24,
-  },
-  disclosureHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  disclosureIconWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: '#D8F36A',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-  disclosureTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#153E35',
-  },
-  disclosureBody: {
-    fontSize: 12,
-    color: '#334155',
-    lineHeight: 18,
-  },
-  specsCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 24,
-  },
-  specRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  specDivider: {
-    height: 1,
+  fixedPill: {
     backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
-  specLabelRow: {
+  fixedPillText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  signOutWrapper: {
+    marginBottom: 20,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 40,
+    maxHeight: '85%',
+  },
+  modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
   },
-  specLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#64748B',
-    marginLeft: 8,
-  },
-  specValue: {
-    fontSize: 12,
-    fontWeight: '700',
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
     color: '#0F172A',
   },
-  versionContainer: {
-    flexDirection: 'row',
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalAvatarSection: {
     alignItems: 'center',
-    justifyContent: 'center',
     marginBottom: 24,
   },
-  versionText: {
+  modalAvatarContainer: {
+    marginBottom: 12,
+  },
+  modalAvatarImage: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    borderWidth: 3,
+    borderColor: '#D8F36A',
+  },
+  modalAvatarPlaceholder: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: '#153E35',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#D8F36A',
+  },
+  modalAvatarText: {
+    fontSize: 30,
+    fontWeight: '800',
+    color: '#D8F36A',
+  },
+  photoActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  photoActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    marginHorizontal: 4,
+  },
+  photoActionText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#153E35',
+    marginLeft: 6,
+  },
+  removePhotoButton: {
+    backgroundColor: '#FEE2E2',
+  },
+  removePhotoText: {
+    color: '#DC2626',
+  },
+  inputGroup: {
+    marginBottom: 18,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155',
+    marginBottom: 6,
+  },
+  textInput: {
+    backgroundColor: '#F8FAF6',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#0F172A',
+  },
+  textInputError: {
+    borderColor: '#EF4444',
+    backgroundColor: '#FEF2F2',
+  },
+  readOnlyPhoneBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  readOnlyPhoneText: {
+    fontSize: 15,
+    color: '#475569',
+    fontWeight: '600',
+    flex: 1,
+  },
+  verifiedSmallBadge: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  verifiedSmallBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#15803D',
+  },
+  helperText: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginTop: 4,
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#EF4444',
+    marginTop: 4,
+    fontWeight: '600',
+  },
+  modalButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+    marginRight: 8,
+    backgroundColor: '#F1F5F9',
+  },
+  cancelButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  saveButton: {
+    flex: 2,
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+    backgroundColor: '#D8F36A',
+  },
+  saveButtonText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#153E35',
+  },
+  infoModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  infoModalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 360,
+  },
+  infoModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  infoModalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginLeft: 10,
+  },
+  infoModalBody: {
+    fontSize: 13,
+    color: '#475569',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  infoModalDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginBottom: 12,
+  },
+  infoModalVersion: {
     fontSize: 11,
     color: '#94A3B8',
-    marginLeft: 6,
-    fontWeight: '500',
-  },
-  logoutWrapper: {
+    textAlign: 'center',
     marginBottom: 16,
+  },
+  infoModalCloseButton: {
+    backgroundColor: '#153E35',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  infoModalCloseText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#D8F36A',
   },
 });

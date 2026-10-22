@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { UserDto } from '@miniledger/contracts';
+import { UserDto, UpdateProfileRequest } from '@miniledger/contracts';
 import {
   getAuthToken,
   saveAuthToken,
@@ -7,7 +7,7 @@ import {
   hasCompletedOnboarding,
   setOnboardingCompleted,
 } from '../../lib/secure-storage';
-import { getMeApi } from './api';
+import { getMeApi, updateProfileApi } from './api';
 import { queryClient } from '../../lib/query-client';
 
 interface AuthContextType {
@@ -17,6 +17,7 @@ interface AuthContextType {
   user: UserDto | null;
   signIn: (token: string, user: UserDto) => Promise<void>;
   signOut: () => Promise<void>;
+  updateProfile: (data: UpdateProfileRequest) => Promise<UserDto>;
   completeOnboarding: () => Promise<void>;
   resetOnboardingState: () => Promise<void>;
 }
@@ -28,6 +29,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   signIn: async () => {},
   signOut: async () => {},
+  updateProfile: async () => { throw new Error('Not implemented'); },
   completeOnboarding: async () => {},
   resetOnboardingState: async () => {},
 });
@@ -81,6 +83,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsAuthenticated(false);
   };
 
+  const updateProfile = async (data: UpdateProfileRequest): Promise<UserDto> => {
+    const updated = await updateProfileApi(data);
+    setUser(updated);
+    queryClient.setQueryData(['me'], updated);
+    queryClient.invalidateQueries({ queryKey: ['me'] });
+    return updated;
+  };
+
   const completeOnboarding = async () => {
     await setOnboardingCompleted(true);
     setHasOnboarded(true);
@@ -100,6 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         signIn,
         signOut,
+        updateProfile,
         completeOnboarding,
         resetOnboardingState,
       }}

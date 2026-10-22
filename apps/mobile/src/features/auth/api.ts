@@ -5,6 +5,7 @@ import {
   VerifyOtpRequest,
   VerifyOtpResponse,
   UserDto,
+  UpdateProfileRequest,
 } from '@miniledger/contracts';
 
 export async function requestOtpApi(phoneNumber: string): Promise<RequestOtpResponse['data']> {
@@ -27,5 +28,14 @@ export async function verifyOtpApi(
 export async function getMeApi(): Promise<UserDto> {
   return apiClient<UserDto>('/auth/me', {
     method: 'GET',
+  });
+}
+
+export async function updateProfileApi(
+  data: UpdateProfileRequest
+): Promise<UserDto> {
+  return apiClient<UserDto>('/auth/profile', {
+    method: 'PATCH',
+    body: JSON.stringify(data),
   });
 }

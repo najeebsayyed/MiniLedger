@@ -86,3 +86,43 @@ export async function hasCompletedOnboarding(): Promise<boolean> {
     return false;
   }
 }
+
+const AVATAR_SERVICE = 'miniledger_user_avatar';
+let memoryAvatarFallback: string | null = null;
+
+export async function saveUserAvatar(avatarUri: string | null): Promise<void> {
+  memoryAvatarFallback = avatarUri;
+  try {
+    if (avatarUri) {
+      await Keychain.setGenericPassword('avatar', avatarUri, {
+        service: AVATAR_SERVICE,
+      });
+    } else {
+      await Keychain.resetGenericPassword({
+        service: AVATAR_SERVICE,
+      });
+    }
+  } catch (err) {
+    console.warn('Keychain avatar fallback to memory:', err);
+  }
+}
+
+export async function getUserAvatar(): Promise<string | null> {
+  if (memoryAvatarFallback !== null) {
+    return memoryAvatarFallback;
+  }
+
+  try {
+    const creds = await Keychain.getGenericPassword({
+      service: AVATAR_SERVICE,
+    });
+    if (creds && creds.password) {
+      memoryAvatarFallback = creds.password;
+      return creds.password;
+    }
+    return null;
+  } catch (err) {
+    console.warn('Could not read avatar state, using fallback:', err);
+    return null;
+  }
+}
