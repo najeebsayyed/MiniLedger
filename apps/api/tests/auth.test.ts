@@ -167,4 +167,43 @@ describe('Auth Endpoints & Business Rules', () => {
     expect(meRes.status).toBe(200);
     expect(meRes.body.data.phoneNumber).toBe(phone);
   });
+
+  it('updates display name, validates input, and reflects in subsequent /me call', async () => {
+    const phone = generateTestPhone();
+    const otp = '888888';
+    await db.insert(otpChallenges).values({
+      phoneNumber: phone,
+      codeHash: hashOtp(otp),
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      attemptCount: 0,
+    });
+
+    const verifyRes = await request(app)
+      .post('/api/v1/auth/verify-otp')
+      .send({ phoneNumber: phone, otp });
+    const token = verifyRes.body.data.accessToken;
+
+    // Reject empty/whitespace name
+    const invalidRes = await request(app)
+      .patch('/api/v1/auth/profile')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: '   ' });
+    expect(invalidRes.status).toBe(400);
+
+    // Valid name update
+    const updateRes = await request(app)
+      .patch('/api/v1/auth/profile')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Rahul Sharma' });
+    expect(updateRes.status).toBe(200);
+    expect(updateRes.body.data.name).toBe('Rahul Sharma');
+    expect(updateRes.body.data.phoneNumber).toBe(phone);
+
+    // Verify /me now returns the updated name
+    const meRes = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${token}`);
+    expect(meRes.status).toBe(200);
+    expect(meRes.body.data.name).toBe('Rahul Sharma');
+  });
 });

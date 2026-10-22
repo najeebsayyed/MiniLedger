@@ -8,6 +8,13 @@
       "when": 1792656341585,
       "tag": "0000_black_excalibur",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792676000000,
+      "tag": "0001_add_user_profile",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { handleRequestOtp, handleVerifyOtp, handleGetMe } from './auth.controller.js';
+import { handleRequestOtp, handleVerifyOtp, handleGetMe, handleUpdateProfile } from './auth.controller.js';
 import { authenticate } from '../../middleware/authenticate.js';
 
 export const authRouter = Router();
@@ -36,3 +36,4 @@ const otpVerifyLimiter = rateLimit({
 authRouter.post('/request-otp', otpRequestLimiter, handleRequestOtp);
 authRouter.post('/verify-otp', otpVerifyLimiter, handleVerifyOtp);
 authRouter.get('/me', authenticate, handleGetMe);
+authRouter.patch('/profile', authenticate, handleUpdateProfile);

@@ -38,10 +38,19 @@ export type VerifyOtpRequest = z.infer<typeof verifyOtpSchema>;
 export const userDtoSchema = z.object({
   id: z.string().uuid(),
   phoneNumber: z.string(),
+  name: z.string().nullable().optional(),
+  avatarUrl: z.string().nullable().optional(),
   createdAt: z.string(),
 });
 
 export type UserDto = z.infer<typeof userDtoSchema>;
+
+export const updateProfileSchema = z.object({
+  name: z.string().trim().min(1, 'Display name cannot be empty').max(60, 'Display name must be under 60 characters').optional(),
+  avatarUrl: z.string().nullable().optional(),
+});
+
+export type UpdateProfileRequest = z.infer<typeof updateProfileSchema>;
 
 export const verifyOtpResponseSchema = z.object({
   data: z.object({

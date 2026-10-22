@@ -82,3 +82,29 @@ export async function findOrCreateUser(phoneNumber: string) {
 
   return newUser;
 }
+
+export async function updateUserProfile(
+  id: string,
+  data: { name?: string; avatarUrl?: string | null }
+) {
+  const [record] = await db
+    .update(users)
+    .set({
+      ...data,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, id))
+    .returning();
+
+  return record || null;
+}
+
+export async function getUserById(id: string) {
+  const [record] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, id))
+    .limit(1);
+
+  return record || null;
+}

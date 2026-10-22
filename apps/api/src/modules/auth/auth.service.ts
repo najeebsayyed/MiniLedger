@@ -128,7 +128,27 @@ export async function verifyOtp(phoneNumber: string, otp: string) {
     user: {
       id: user.id,
       phoneNumber: user.phoneNumber,
+      name: user.name ?? null,
+      avatarUrl: user.avatarUrl ?? null,
       createdAt: user.createdAt.toISOString(),
     },
+  };
+}
+
+export async function updateProfile(
+  userId: string,
+  data: { name?: string; avatarUrl?: string | null }
+) {
+  const updated = await authRepo.updateUserProfile(userId, data);
+  if (!updated) {
+    throw new AppError(404, 'NOT_FOUND', 'User not found.');
+  }
+
+  return {
+    id: updated.id,
+    phoneNumber: updated.phoneNumber,
+    name: updated.name ?? null,
+    avatarUrl: updated.avatarUrl ?? null,
+    createdAt: updated.createdAt.toISOString(),
   };
 }

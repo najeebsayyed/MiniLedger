@@ -26,6 +26,8 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
       .select({
         id: users.id,
         phoneNumber: users.phoneNumber,
+        name: users.name,
+        avatarUrl: users.avatarUrl,
         createdAt: users.createdAt,
       })
       .from(users)
@@ -45,6 +47,8 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     req.user = {
       id: userRecord.id,
       phoneNumber: userRecord.phoneNumber,
+      name: userRecord.name ?? null,
+      avatarUrl: userRecord.avatarUrl ?? null,
       createdAt: userRecord.createdAt.toISOString(),
     };
 
