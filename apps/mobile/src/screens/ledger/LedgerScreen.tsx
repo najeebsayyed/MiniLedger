@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, FlatList, Pressable } from 'react-native';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, AppTabsParamList } from '../../navigation/navigation-types';
 import { Screen } from '../../components/ui/Screen';
@@ -41,7 +41,7 @@ export function LedgerScreen() {
   const {
     data: loansData,
     isLoading,
-    refetch,
+    refetch: refetchLoans,
     isRefetching,
   } = useLoans({
     status: activeFilter,
@@ -49,9 +49,21 @@ export function LedgerScreen() {
     sort: 'smart',
   });
 
-  const { data: summary } = useSummary();
+  const { data: summary, refetch: refetchSummary } = useSummary();
 
-  const loans = loansData?.data || [];
+  // Ensure fresh data on screen focus
+  useFocusEffect(
+    useCallback(() => {
+      refetchLoans();
+      refetchSummary();
+    }, [refetchLoans, refetchSummary])
+  );
+
+  const loans: LoanDto[] = Array.isArray(loansData)
+    ? loansData
+    : Array.isArray((loansData as any)?.data)
+    ? (loansData as any).data
+    : [];
 
   const filterOptions: { label: string; value: LoanFilterStatus; count?: number }[] = [
     { label: 'All', value: 'all', count: (summary?.activeLoansCount ?? 0) + (summary?.repaidLoansCount ?? 0) },
@@ -149,7 +161,7 @@ export function LedgerScreen() {
           )}
           showsVerticalScrollIndicator={false}
           refreshing={isRefetching}
-          onRefresh={refetch}
+          onRefresh={refetchLoans}
           contentContainerStyle={{ paddingBottom: 40 }}
         />
       )}

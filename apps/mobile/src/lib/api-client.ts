@@ -95,5 +95,16 @@ export async function apiClient<T>(
     );
   }
 
-  return responseJson?.data !== undefined ? responseJson.data : responseJson;
+  if (responseJson && typeof responseJson === 'object') {
+    // If it's a paginated envelope with both 'data' and 'meta', preserve the full structure
+    if ('data' in responseJson && 'meta' in responseJson) {
+      return responseJson;
+    }
+    // If it's a standard single entity envelope { data: T }, unwrap it
+    if ('data' in responseJson) {
+      return responseJson.data;
+    }
+  }
+
+  return responseJson;
 }

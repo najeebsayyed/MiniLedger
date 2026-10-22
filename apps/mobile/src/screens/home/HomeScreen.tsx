@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/navigation-types';
 import { Screen } from '../../components/ui/Screen';
@@ -11,6 +11,7 @@ import { LoanRowSkeleton, SummaryCardSkeleton } from '../../components/ui/Loadin
 import { useSummary } from '../../features/summary/hooks';
 import { useLoans } from '../../features/loans/hooks';
 import { useCurrentUser } from '../../features/auth/hooks';
+import { LoanDto } from '@miniledger/contracts';
 import { Plus, ArrowRight, ShieldCheck, AlertCircle, CheckCircle2 } from 'lucide-react-native';
 
 export function HomeScreen() {
@@ -32,13 +33,26 @@ export function HomeScreen() {
 
   const { data: user } = useCurrentUser();
 
+  // Refetch when tab gains focus to prevent stale data
+  useFocusEffect(
+    useCallback(() => {
+      refetchSummary();
+      refetchLoans();
+    }, [refetchSummary, refetchLoans])
+  );
+
   const isRefreshing = isSummaryRefetching || isLoansRefetching;
 
   const handleRefresh = async () => {
     await Promise.all([refetchSummary(), refetchLoans()]);
   };
 
-  const loans = loansData?.data || [];
+  const loans: LoanDto[] = Array.isArray(loansData)
+    ? loansData
+    : Array.isArray((loansData as any)?.data)
+    ? (loansData as any).data
+    : [];
+
   const overdueLoans = loans.filter((l) => l.isOverdue && l.status === 'ACTIVE');
   const hasOverdue = (summary?.overdueLoansCount ?? 0) > 0;
 
