@@ -6,7 +6,8 @@ import { Screen } from '../../components/ui/Screen';
 import { TextField } from '../../components/ui/TextField';
 import { Button } from '../../components/ui/Button';
 import { useRequestOtp } from '../../features/auth/hooks';
-import { Wallet, ShieldCheck, ArrowRight } from 'lucide-react-native';
+import { MiniLedgerLogo } from '../../components/illustrations/MiniLedgerLogo';
+import { ShieldCheck, ArrowRight } from 'lucide-react-native';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
@@ -54,8 +55,8 @@ export function LoginScreen({ navigation }: Props) {
   return (
     <Screen scrollable contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}>
       <View className="items-center mb-8">
-        <View className="w-16 h-16 rounded-3xl bg-brand items-center justify-center mb-4 shadow-md shadow-brand/20">
-          <Wallet size={32} color="#D8F36A" />
+        <View className="mb-4">
+          <MiniLedgerLogo size={72} />
         </View>
         <Text className="text-3xl font-extrabold text-brand tracking-tight">
           MiniLedger

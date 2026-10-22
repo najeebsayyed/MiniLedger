@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable, Image } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/navigation-types';
@@ -70,19 +70,30 @@ export function HomeScreen() {
             MiniLedger
           </Text>
           <Text className="text-xl font-extrabold text-text-primary tracking-tight">
-            Your money, in view
+            {user?.name ? `Welcome, ${user.name.split(' ')[0]}` : 'Your money, in view'}
           </Text>
         </View>
 
         <Pressable
           onPress={() => (navigation as any).navigate('App', { screen: 'Settings' })}
-          className="w-10 h-10 rounded-full bg-surface border border-border items-center justify-center shadow-xs"
+          className="w-10 h-10 rounded-full bg-surface border border-border items-center justify-center shadow-xs overflow-hidden"
           accessibilityRole="button"
-          accessibilityLabel="Open settings"
+          accessibilityLabel="Open account settings"
         >
-          <Text className="text-xs font-bold text-brand">
-            {user?.phoneNumber ? user.phoneNumber.slice(-2) : 'ML'}
-          </Text>
+          {user?.avatarUrl ? (
+            <Image
+              source={{ uri: user.avatarUrl }}
+              style={{ width: 40, height: 40, borderRadius: 20 }}
+            />
+          ) : (
+            <Text className="text-xs font-bold text-brand">
+              {user?.name
+                ? user.name.slice(0, 2).toUpperCase()
+                : user?.phoneNumber
+                ? user.phoneNumber.slice(-2)
+                : 'ML'}
+            </Text>
+          )}
         </Pressable>
       </View>
 
