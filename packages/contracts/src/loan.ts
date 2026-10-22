@@ -28,9 +28,21 @@ export const createLoanSchema = z.object({
       const date = new Date(val + 'T00:00:00Z');
       return !isNaN(date.getTime());
     }, 'Choose a valid calendar date.'),
+  receiptUrl: z.string().nullable().optional(),
 });
 
 export type CreateLoanRequest = z.infer<typeof createLoanSchema>;
+
+export const uploadReceiptResponseSchema = z.object({
+  data: z.object({
+    receiptUrl: z.string(),
+    filename: z.string(),
+    size: z.number(),
+    mimetype: z.string(),
+  }),
+});
+
+export type UploadReceiptResponse = z.infer<typeof uploadReceiptResponseSchema>;
 
 export const loanDtoSchema = z.object({
   id: z.string().uuid(),

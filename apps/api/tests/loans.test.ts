@@ -178,4 +178,89 @@ describe('Loans Endpoints & Business Rules', () => {
     expect(searchRes.body.data).toHaveLength(1);
     expect(searchRes.body.data[0].friendName).toBe('Ananya Future');
   });
+
+  it('rejects invalid monetary precision (more than 2 decimal places)', async () => {
+    const { token } = await createTestUser();
+    const res = await request(app)
+      .post('/api/v1/loans')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ friendName: 'Divya', amount: '1250.555', dueDate: '2026-11-01' });
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toContain('up to two decimals');
+  });
+
+  it('uploads a receipt via base64, creates loan with receiptUrl, and enforces owner-only retrieval', async () => {
+    const { token: userAToken } = await createTestUser();
+    const { token: userBToken } = await createTestUser();
+
+    // 1. Upload receipt via base64
+    const validBase64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    const uploadRes = await request(app)
+      .post('/api/v1/loans/upload-receipt')
+      .set('Authorization', `Bearer ${userAToken}`)
+      .send({ receiptBase64: validBase64 });
+
+    expect(uploadRes.status).toBe(201);
+    expect(uploadRes.body.data.receiptUrl).toBeDefined();
+    expect(uploadRes.body.data.filename).toBeDefined();
+
+    const receiptUrl = uploadRes.body.data.receiptUrl;
+
+    // 2. Create loan with receiptUrl
+    const loanRes = await request(app)
+      .post('/api/v1/loans')
+      .set('Authorization', `Bearer ${userAToken}`)
+      .send({
+        friendName: 'Ramesh Patel',
+        amount: '1500.00',
+        dueDate: '2026-12-01',
+        receiptUrl,
+      });
+
+    expect(loanRes.status).toBe(201);
+    expect(loanRes.body.data.receiptUrl).toBe(receiptUrl);
+    const loanId = loanRes.body.data.id;
+
+    // 3. User A can retrieve their receipt
+    const getReceiptResA = await request(app)
+      .get(`/api/v1/loans/${loanId}/receipt`)
+      .set('Authorization', `Bearer ${userAToken}`);
+    expect(getReceiptResA.status).toBe(200);
+
+    // 4. User B is FORBIDDEN from viewing User A's receipt
+    const getReceiptResB = await request(app)
+      .get(`/api/v1/loans/${loanId}/receipt`)
+      .set('Authorization', `Bearer ${userBToken}`);
+    expect(getReceiptResB.status).toBe(404); // Scoped to user, loan not found for user B
+
+    // 5. User A can remove receipt from loan
+    const removeRes = await request(app)
+      .delete(`/api/v1/loans/${loanId}/receipt`)
+      .set('Authorization', `Bearer ${userAToken}`);
+    expect(removeRes.status).toBe(200);
+    expect(removeRes.body.data.receiptUrl).toBeNull();
+  });
+
+  it('rejects unsupported receipt file types and enforces 5MB limit', async () => {
+    const { token } = await createTestUser();
+
+    // Unsupported MIME type
+    const textBase64 = 'data:text/plain;base64,SGVsbG8gd29ybGQ=';
+    const unsuppRes = await request(app)
+      .post('/api/v1/loans/upload-receipt')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ receiptBase64: textBase64 });
+    expect(unsuppRes.status).toBe(400);
+    expect(unsuppRes.body.error.message).toContain('JPEG, PNG, and WebP');
+
+    // Exceeds 5MB
+    const largeBuffer = Buffer.alloc(5.5 * 1024 * 1024, 'a');
+    const largeBase64 = `data:image/jpeg;base64,${largeBuffer.toString('base64')}`;
+    const largeRes = await request(app)
+      .post('/api/v1/loans/upload-receipt')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ receiptBase64: largeBase64 });
+    expect(largeRes.status).toBe(400);
+    expect(largeRes.body.error.message).toContain('5 MB or smaller');
+  });
 });

@@ -6,7 +6,7 @@ import { getBusinessDate } from '../../lib/dates.js';
 
 export async function createLoan(
   ownerId: string,
-  data: { friendName: string; amount: string; dueDate: string }
+  data: { friendName: string; amount: string; dueDate: string; receiptUrl?: string | null }
 ) {
   const [record] = await db
     .insert(loans)
@@ -17,10 +17,24 @@ export async function createLoan(
       dueDate: data.dueDate,
       status: 'ACTIVE',
       repaidAt: null,
+      receiptUrl: data.receiptUrl ?? null,
     })
     .returning();
 
   return record;
+}
+
+export async function updateLoanReceipt(id: string, ownerId: string, receiptUrl: string | null) {
+  const [record] = await db
+    .update(loans)
+    .set({
+      receiptUrl,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(loans.id, id), eq(loans.ownerId, ownerId)))
+    .returning();
+
+  return record || null;
 }
 
 export async function findLoanByIdAndOwner(id: string, ownerId: string) {

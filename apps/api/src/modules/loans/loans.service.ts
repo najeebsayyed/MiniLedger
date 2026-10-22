@@ -27,9 +27,38 @@ export async function createLoan(ownerId: string, input: CreateLoanRequest): Pro
     friendName: input.friendName.trim(),
     amount: formattedAmount,
     dueDate: input.dueDate,
+    receiptUrl: input.receiptUrl ?? null,
   });
 
   return mapLoanToDto(loanRecord);
+}
+
+export async function attachReceipt(id: string, ownerId: string, receiptUrl: string): Promise<LoanDto> {
+  const existing = await loansRepo.findLoanByIdAndOwner(id, ownerId);
+  if (!existing) {
+    throw new AppError(404, 'LOAN_NOT_FOUND', 'Loan not found.');
+  }
+
+  const updated = await loansRepo.updateLoanReceipt(id, ownerId, receiptUrl);
+  if (!updated) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Could not update receipt.');
+  }
+
+  return mapLoanToDto(updated);
+}
+
+export async function removeReceipt(id: string, ownerId: string): Promise<LoanDto> {
+  const existing = await loansRepo.findLoanByIdAndOwner(id, ownerId);
+  if (!existing) {
+    throw new AppError(404, 'LOAN_NOT_FOUND', 'Loan not found.');
+  }
+
+  const updated = await loansRepo.updateLoanReceipt(id, ownerId, null);
+  if (!updated) {
+    throw new AppError(500, 'INTERNAL_ERROR', 'Could not remove receipt.');
+  }
+
+  return mapLoanToDto(updated);
 }
 
 export async function getLoans(ownerId: string, query: LoanFilterQuery) {
