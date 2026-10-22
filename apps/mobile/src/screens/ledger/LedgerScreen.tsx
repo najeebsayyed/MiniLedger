@@ -162,7 +162,7 @@ export function LedgerScreen() {
           showsVerticalScrollIndicator={false}
           refreshing={isRefetching}
           onRefresh={refetchLoans}
-          contentContainerStyle={{ paddingBottom: 40 }}
+          contentContainerStyle={{ paddingBottom: 90 }}
         />
       )}
     </Screen>
