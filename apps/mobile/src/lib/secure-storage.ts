@@ -46,3 +46,43 @@ export async function clearAuthToken(): Promise<void> {
     console.warn('Could not reset keychain password:', err);
   }
 }
+
+const ONBOARDING_SERVICE = 'miniledger_onboarding_state';
+let memoryOnboardingFallback: boolean | null = null;
+
+export async function setOnboardingCompleted(completed: boolean): Promise<void> {
+  memoryOnboardingFallback = completed;
+  try {
+    if (completed) {
+      await Keychain.setGenericPassword('onboarding', 'completed', {
+        service: ONBOARDING_SERVICE,
+      });
+    } else {
+      await Keychain.resetGenericPassword({
+        service: ONBOARDING_SERVICE,
+      });
+    }
+  } catch (err) {
+    console.warn('Keychain onboarding fallback to memory:', err);
+  }
+}
+
+export async function hasCompletedOnboarding(): Promise<boolean> {
+  if (memoryOnboardingFallback !== null) {
+    return memoryOnboardingFallback;
+  }
+
+  try {
+    const creds = await Keychain.getGenericPassword({
+      service: ONBOARDING_SERVICE,
+    });
+    if (creds && creds.password === 'completed') {
+      memoryOnboardingFallback = true;
+      return true;
+    }
+    return false;
+  } catch (err) {
+    console.warn('Could not read onboarding state, using fallback:', err);
+    return false;
+  }
+}

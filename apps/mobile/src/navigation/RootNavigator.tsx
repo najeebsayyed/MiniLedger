@@ -1,59 +1,39 @@
-import React from 'react';
-import { View, ActivityIndicator, Text } from 'react-native';
+import React, { useState } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { RootStackParamList } from './navigation-types';
 import { AuthNavigator } from './AuthNavigator';
 import { AppNavigator } from './AppNavigator';
+import { SplashScreen } from '../screens/splash/SplashScreen';
+import { OnboardingScreen } from '../screens/onboarding/OnboardingScreen';
 import { AddLoanScreen } from '../screens/loans/AddLoanScreen';
 import { LoanDetailsScreen } from '../screens/loans/LoanDetailsScreen';
 import { useAuth } from '../features/auth/AuthContext';
-import { colors } from '../theme/colors';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, hasOnboarded, isLoading } = useAuth();
+  const [isSplashDone, setIsSplashDone] = useState(false);
 
-  if (isLoading) {
+  if (isLoading || !isSplashDone) {
     return (
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: colors.brand.primary,
-          alignItems: 'center',
-          justifyContent: 'center',
+      <SplashScreen
+        onFinish={() => {
+          setIsSplashDone(true);
         }}
-      >
-        <Text
-          style={{
-            fontSize: 28,
-            fontWeight: '800',
-            color: '#FFFFFF',
-            letterSpacing: -0.5,
-            marginBottom: 8,
-          }}
-        >
-          MiniLedger
-        </Text>
-        <Text
-          style={{
-            fontSize: 14,
-            fontWeight: '500',
-            color: colors.brand.citrus,
-            marginBottom: 24,
-          }}
-        >
-          Calm personal loan tracking
-        </Text>
-        <ActivityIndicator size="small" color={colors.brand.citrus} />
-      </View>
+      />
     );
   }
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {!isAuthenticated ? (
-        <Stack.Screen name="Auth" component={AuthNavigator} />
+        <>
+          {!hasOnboarded && (
+            <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+          )}
+          <Stack.Screen name="Auth" component={AuthNavigator} />
+        </>
       ) : (
         <>
           <Stack.Screen name="App" component={AppNavigator} />

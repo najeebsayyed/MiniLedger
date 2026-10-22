@@ -13,6 +13,8 @@ export type AppTabsParamList = {
 };
 
 export type RootStackParamList = {
+  Splash: undefined;
+  Onboarding: undefined;
   Auth: NavigatorScreenParams<AuthStackParamList>;
   App: NavigatorScreenParams<AppTabsParamList>;
   AddLoan: undefined;
