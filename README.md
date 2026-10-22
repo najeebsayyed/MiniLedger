@@ -7,13 +7,15 @@ MiniLedger is a modern full-stack mobile application for tracking personal loans
 ## Features
 
 - **Phone Authentication with Mock OTP**: Fast, passwordless login using phone verification. In development, a random 6-digit OTP is output directly to the server terminal.
-- **Loan Management**: Create loans with borrower name, amount, notes, and due date. Past due dates are supported to record existing loans retroactively.
+- **Loan Management**: Create loans with borrower name, amount, notes, due date, and optional receipt attachment. Past due dates are supported to record existing loans retroactively.
+- **Receipt Photo Attachment & Viewing**: Attach receipts or invoices directly via camera capture or photo gallery. Files are validated (JPEG/PNG/WebP, max 5MB), stored securely on the backend, and viewable via a full-screen interactive image viewer modal.
 - **Repayment Tracking**: Mark loans as repaid with atomic database status transitions and immediate balance recalculation.
 - **Overdue Detection**: Automatically flags overdue loans by comparing due dates against a centralized business timezone (`Asia/Kolkata`). Loans due today remain active and are not marked overdue.
 - **Portfolio Summary**: Live financial dashboard displaying Total Lent, Total Repaid, Overdue Amount, and Net Outstanding computed with PostgreSQL decimal precision.
 - **Ledger Search & Filtering**: Instant search by friend name and tab filters for All, Outstanding, Overdue, and Repaid loans.
-- **Interactive Onboarding**: 4-slide introductory product walkthrough with custom vector illustrations explaining core functionality.
-- **Account & Settings Hub**: Profile badge, session security information, architectural stack details, cache invalidation, and secure sign-out.
+- **Comprehensive Input Validation**: Dynamic client-side and server-side Zod validation with friendly inline errors, 2-decimal monetary precision enforcement, valid calendar date checking, and double-tap prevention.
+- **Automated Test Suite**: 35 automated tests covering authentication, rate limiting, loan CRUD, atomic repayments, decimal summary calculations, date boundaries, and receipt upload/authorization rules.
+- **Interactive Onboarding & Account Customization**: 4-slide introductory product walkthrough with custom vector illustrations, and a user profile with editable display name and persistent photo.
 
 ---
 
@@ -224,11 +226,46 @@ All API endpoints are prefixed with `/api/v1` (except the health check).
 | `POST` | `/api/v1/auth/request-otp` | No | Request a 6-digit OTP challenge for a phone number (rate limited) |
 | `POST` | `/api/v1/auth/verify-otp` | No | Validate OTP challenge and obtain a JWT bearer token |
 | `GET` | `/api/v1/auth/me` | Bearer JWT | Retrieve profile details for the authenticated user session |
+| `PATCH` | `/api/v1/auth/me` | Bearer JWT | Update user display name and profile picture (up to 10MB) |
 | `GET` | `/api/v1/summary` | Bearer JWT | Get user's financial totals (Total Lent, Repaid, Overdue, Outstanding) |
 | `GET` | `/api/v1/loans` | Bearer JWT | List user loans with pagination, search, and status filters |
-| `POST` | `/api/v1/loans` | Bearer JWT | Create a new loan record (`friendName`, `amount`, `dueDate`, `notes`) |
+| `POST` | `/api/v1/loans` | Bearer JWT | Create a new loan record (`friendName`, `amount`, `dueDate`, `receiptUrl`) |
 | `GET` | `/api/v1/loans/:id` | Bearer JWT | Retrieve full details of a specific loan |
 | `PATCH` | `/api/v1/loans/:id/repay` | Bearer JWT | Atomically mark an active loan as repaid |
+| `POST` | `/api/v1/loans/upload-receipt` | Bearer JWT | Upload a receipt image (multipart or base64, max 5MB, JPEG/PNG/WebP) |
+| `GET` | `/api/v1/loans/:id/receipt` | Bearer JWT | Stream authenticated receipt image owned by the user |
+| `POST` | `/api/v1/loans/:id/receipt` | Bearer JWT | Attach or replace a receipt on an existing loan |
+| `DELETE` | `/api/v1/loans/:id/receipt` | Bearer JWT | Remove attached receipt from a loan and cleanup disk storage |
+| `GET` | `/api/v1/loans/receipts/:filename` | Bearer JWT | Secure stream of receipt by filename with path traversal protection |
+
+---
+
+## Receipt Storage Architecture
+
+MiniLedger includes an end-to-end receipt upload and viewing pipeline designed for production safety:
+
+1. **Storage Location**: Uploads are saved into `apps/api/uploads/receipts/` outside the web root. Files are never served statically or publicly exposed.
+2. **Security & Ownership**: All receipt streaming endpoints (`/api/v1/loans/:id/receipt` and `/api/v1/loans/receipts/:filename`) require a valid Bearer JWT. The server checks loan ownership before returning any file bytes. Another user cannot access or view receipts belonging to someone else.
+3. **Path Traversal Protection**: All file paths are strictly resolved via `path.basename` and checked against the sanitized uploads directory, preventing directory traversal (`../`) attacks.
+4. **Validation Limits**: Receipts are restricted to `image/jpeg`, `image/png`, and `image/webp` with a strict **5MB** file size limit.
+5. **Production Ready**: In local development, receipts use local disk storage (`diskStorage`). In cloud production, the storage adapter can be swapped with Amazon S3, Cloudflare R2, or Google Cloud Storage without altering the API contract.
+
+---
+
+## Automated Testing Suite
+
+MiniLedger features a comprehensive automated test suite powered by **Vitest** and **Supertest** running against a dedicated test database:
+
+```bash
+# Run the complete test suite (35 tests)
+npm test
+```
+
+### Covered Test Suites:
+- **`tests/auth.test.ts` (8 tests)**: Mock OTP generation, server log output without response exposure, 60s rate limiting, single-use OTP challenge consumption, wrong OTP attempt count with 5-try lockout, expiry rejection, `/me` profile retrieval, and name/photo update persistence.
+- **`tests/loans.test.ts` (8 tests)**: Active loan creation, past due date allowance, strict user isolation (User B cannot read User A's loans), atomic repayment transitions with 409 conflict prevention, loan filtering & search, monetary precision enforcement, receipt upload/retrieval ownership, and 5MB / MIME type rejection.
+- **`tests/summary.test.ts` (4 tests)**: Zero ledger handling, PostgreSQL decimal summation correctness, repayment transitions, calendar business date boundary testing (due today is NOT overdue; due yesterday is overdue), and multi-user isolation.
+- **`tests/validation.test.ts` (15 tests)**: E.164 phone formats, 6-digit OTP regex, profile name length boundaries (1–60 chars), loan friend name bounds (1–80 chars), decimal amount regex and boundaries (positive, max 2 decimals, rejecting zero/negative), YYYY-MM-DD calendar dates, and receipt URL paths.
 
 ---
 
