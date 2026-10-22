@@ -4,6 +4,20 @@ MiniLedger is a modern full-stack mobile application for tracking personal loans
 
 ---
 
+## 🎬 Application Demo
+
+A complete end-to-end walkthrough demonstrating onboarding, passwordless mock OTP login, dashboard statistics, loan creation with overdue flagging, receipt photo attachment & full-screen viewing, search & filtering, and atomic repayment recalculation.
+
+<p align="center">
+  <video src="apps/mobile/assets/demo/MiniLedger-Demo.mp4" width="100%" controls="controls">
+    <a href="apps/mobile/assets/demo/MiniLedger-Demo.mp4">▶️ Click here to watch / download Demo Video (MP4)</a>
+  </video>
+</p>
+
+> 📹 **Demo File Location**: [`apps/mobile/assets/demo/MiniLedger-Demo.mp4`](apps/mobile/assets/demo/MiniLedger-Demo.mp4)
+
+---
+
 ## Features
 
 - **Phone Authentication with Mock OTP**: Fast, passwordless login using phone verification. In development, a random 6-digit OTP is output directly to the server terminal.
